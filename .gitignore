@@ -18,10 +18,9 @@ __pycache__/
 # Node
 node_modules/
 frontend/node_modules/
-Atlasly-flow/frontend/node_modules/
 
-# Vite build artifacts inside source tree (already copied to webapp/)
-Atlasly-flow/frontend/dist/
+# Vite build artifacts inside source tree
+frontend/dist/
 
 # Logs
 *.log
