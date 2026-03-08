@@ -50,6 +50,25 @@ def _http_get_json(*, url: str, headers: dict[str, str], timeout_seconds: int = 
 
 def _http_error_to_poll_error(exc: Exception) -> ConnectorPollError:
     if isinstance(exc, HTTPError):
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            body = ""
+        accela_code = str(exc.headers.get("x-accela-resp-code") or "").strip().lower()
+        accela_message = str(exc.headers.get("x-accela-resp-message") or "").strip()
+        if int(exc.code) == 401:
+            if accela_code == "invalid_token":
+                return ConnectorPollError(
+                    f"accela invalid or expired oauth token: {accela_message or 'invalid_token'}",
+                    retryable=False,
+                )
+            return ConnectorPollError("connector authentication failed (401 unauthorized)", retryable=False)
+        if int(exc.code) == 403:
+            detail = accela_message or body or "permission denied or missing required scope"
+            return ConnectorPollError(f"connector access forbidden: {detail}", retryable=False)
+        if int(exc.code) == 404:
+            return ConnectorPollError("connector endpoint not found; verify base url and tenant context", retryable=False)
         retryable = int(exc.code) >= 500 or int(exc.code) in {408, 429}
         return ConnectorPollError(f"connector HTTP error {exc.code}", retryable=retryable)
     if isinstance(exc, URLError):
@@ -189,11 +208,12 @@ def build_live_connector_adapter(
 
     if connector == "accela_api":
         base_url = str(env_map.get("ATLASLY_ACCELA_BASE_URL") or "https://apis.accela.com").strip()
+        app_id = str(env_map.get("ATLASLY_ACCELA_APP_ID") or "").strip()
+        if not app_id:
+            raise ConnectorPollError("accela app id missing (set ATLASLY_ACCELA_APP_ID)", retryable=False)
         headers = {"Accept": "application/json"}
         headers.update(auth.headers())
-        app_id = str(env_map.get("ATLASLY_ACCELA_APP_ID") or "").strip()
-        if app_id:
-            headers["x-accela-appid"] = app_id
+        headers["x-accela-appid"] = app_id
         return AccelaLiveAdapter(base_url=base_url, headers=headers)
 
     if connector == "opengov_api":

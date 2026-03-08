@@ -73,6 +73,7 @@ from scripts.stage3.runtime_api import Stage3RuntimeStore
 from scripts.stage0_5.enterprise_service import AuthContext as Stage05AuthContext
 from scripts.stage0_5.enterprise_service import EnterpriseReadinessError
 from scripts.stage0_5.enterprise_service import EnterpriseStore
+from scripts.stage0_5.enterprise_service import PROD_LIKE_DEPLOYMENT_TIERS
 from scripts.stage0_5.enterprise_service import enforce_runtime_hardening_boundary
 from scripts.stage0_5.enterprise_service import archive_task_template
 from scripts.stage0_5.enterprise_service import complete_connector_sync
@@ -95,6 +96,7 @@ from scripts.stage0_5.runtime_api import get_webhook_events_api
 from scripts.stage0_5.runtime_api import post_connector_sync
 from scripts.stage0_5.runtime_api import post_org_api_keys
 from scripts.stage0_5.runtime_api import post_webhooks
+from scripts.runtime_state_store import RuntimeStateSQLiteStore
 
 
 STATIC_DIR = ROOT / "webapp"
@@ -139,6 +141,19 @@ class DemoIds:
 
 class DemoAppState:
     def __init__(self) -> None:
+        self.deployment_tier = os.environ.get("ATLASLY_DEPLOYMENT_TIER", "dev").strip().lower()
+        self.demo_routes_enabled = self.deployment_tier not in PROD_LIKE_DEPLOYMENT_TIERS
+        self.stage05_runtime_backend = os.environ.get(
+            "ATLASLY_STAGE05_RUNTIME_BACKEND",
+            "in_memory" if self.demo_routes_enabled else "sqlite",
+        ).strip().lower()
+        self.stage05_persistence_ready = self._parse_optional_bool(os.environ.get("ATLASLY_STAGE05_PERSISTENCE_READY"))
+        self.runtime_data_dir = self._resolve_runtime_data_dir()
+        self.runtime_data_dir.mkdir(parents=True, exist_ok=True)
+        self.runtime_state_db_path = self._resolve_runtime_state_db_path()
+        self.runtime_store = self._build_runtime_store()
+        if self.stage05_persistence_ready is None and self.runtime_store is not None:
+            self.stage05_persistence_ready = True
         self.stage0_store = Stage0Store.empty()
         self.stage05_store = EnterpriseStore.empty()
         self.stage1a_store = Stage1AStore.empty()
@@ -148,11 +163,10 @@ class DemoAppState:
         self.stage2_db_path = self._resolve_stage2_db_path()
         self.stage2_db_path.parent.mkdir(parents=True, exist_ok=True)
         self.stage2_repo = Stage2SQLiteRepository(db_path=str(self.stage2_db_path))
-        self.stage3_store = Stage3RuntimeStore.bootstrap()
+        self.stage3_db_path = self._resolve_stage3_db_path()
+        self.stage3_db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.stage3_store = Stage3RuntimeStore.bootstrap(db_path=str(self.stage3_db_path))
         self.stage3_api = Stage3RuntimeAPI(self.stage3_store)
-        self.stage05_runtime_backend = os.environ.get("ATLASLY_STAGE05_RUNTIME_BACKEND", "in_memory").strip().lower()
-        self.deployment_tier = os.environ.get("ATLASLY_DEPLOYMENT_TIER", "dev").strip().lower()
-        self.stage05_persistence_ready = self._parse_optional_bool(os.environ.get("ATLASLY_STAGE05_PERSISTENCE_READY"))
 
         self.ids: DemoIds | None = None
         self.sessions_by_token: dict[str, dict] = {}
@@ -168,12 +182,46 @@ class DemoAppState:
         self.stage1a_quality_baseline: dict[str, float] | None = None
         self.feedback_entries: list[dict] = []
         self.telemetry_events: list[dict] = []
+        self._restore_runtime_state()
 
-    @staticmethod
-    def _resolve_stage2_db_path() -> pathlib.Path:
+    def _has_persistent_runtime(self) -> bool:
+        return self.runtime_store is not None
+
+    def _resolve_runtime_data_dir(self) -> pathlib.Path:
+        configured = os.environ.get("ATLASLY_DATA_DIR", "").strip()
+        if configured:
+            return pathlib.Path(configured).expanduser().resolve()
+        return (ROOT / ".atlasly-runtime").resolve()
+
+    def _resolve_runtime_state_db_path(self) -> pathlib.Path:
+        configured = os.environ.get("ATLASLY_RUNTIME_STATE_DB_PATH", "").strip()
+        if configured:
+            return pathlib.Path(configured).expanduser().resolve()
+        return self.runtime_data_dir / "runtime_state.sqlite3"
+
+    def _resolve_stage3_db_path(self) -> pathlib.Path:
+        configured = os.environ.get("ATLASLY_STAGE3_DB_PATH", "").strip()
+        if configured:
+            return pathlib.Path(configured).expanduser().resolve()
+        if self._has_prod_like_tier():
+            return self.runtime_data_dir / "stage3.sqlite3"
+        return self.runtime_data_dir / f"stage3_demo_{uuid.uuid4().hex}.sqlite3"
+
+    def _build_runtime_store(self) -> RuntimeStateSQLiteStore | None:
+        if not self._has_prod_like_tier() and not os.environ.get("ATLASLY_RUNTIME_STATE_DB_PATH", "").strip():
+            return None
+        self.runtime_state_db_path.parent.mkdir(parents=True, exist_ok=True)
+        return RuntimeStateSQLiteStore(db_path=str(self.runtime_state_db_path))
+
+    def _has_prod_like_tier(self) -> bool:
+        return self.deployment_tier in PROD_LIKE_DEPLOYMENT_TIERS
+
+    def _resolve_stage2_db_path(self) -> pathlib.Path:
         configured = os.environ.get("ATLASLY_STAGE2_DB_PATH", "").strip()
         if configured:
             return pathlib.Path(configured).expanduser().resolve()
+        if self._has_prod_like_tier():
+            return self.runtime_data_dir / "stage2.sqlite3"
         temp_root = pathlib.Path(tempfile.gettempdir()) / "atlasly-flow"
         temp_root.mkdir(parents=True, exist_ok=True)
         return temp_root / f"atlasly_stage2_demo_{uuid.uuid4().hex}.sqlite3"
@@ -203,6 +251,94 @@ class DemoAppState:
             persistence_ready=self.stage05_persistence_ready,
         )
 
+    def _runtime_snapshot(self) -> dict:
+        return {
+            "ids": None if self.ids is None else {
+                "organization_id": self.ids.organization_id,
+                "workspace_id": self.ids.workspace_id,
+                "owner_user_id": self.ids.owner_user_id,
+                "admin_user_id": self.ids.admin_user_id,
+                "pm_user_id": self.ids.pm_user_id,
+                "reviewer_user_id": self.ids.reviewer_user_id,
+                "subcontractor_user_id": self.ids.subcontractor_user_id,
+                "project_id": self.ids.project_id,
+                "permit_id": self.ids.permit_id,
+                "milestone_id": self.ids.milestone_id,
+            },
+            "stage0_store": self.stage0_store,
+            "stage05_store": self.stage05_store,
+            "stage1a_store": self.stage1a_store,
+            "stage1a_ingestion_store": self.stage1a_ingestion_store,
+            "stage1b_ticket_store": self.stage1b_repo.load_ticket_store(),
+            "stage1b_notification_store": self.stage1b_repo.load_notification_store(),
+            "sessions_by_token": self.sessions_by_token,
+            "session_token_by_role": self.session_token_by_role,
+            "last_letter_id": self.last_letter_id,
+            "last_instruction_id": self.last_instruction_id,
+            "last_webhook_subscription_id": self.last_webhook_subscription_id,
+            "last_connector_run_id": self.last_connector_run_id,
+            "last_api_credential_id": self.last_api_credential_id,
+            "last_task_template_id": self.last_task_template_id,
+            "last_audit_export_id": self.last_audit_export_id,
+            "last_stage1a_upload_job_id": self.last_stage1a_upload_job_id,
+            "stage1a_quality_baseline": self.stage1a_quality_baseline,
+            "feedback_entries": self.feedback_entries,
+            "telemetry_events": self.telemetry_events,
+            "stage3_feature_store_data": self.stage3_store.feature_store.data,
+            "stage3_model_registry_store": self.stage3_store.model_registry.store,
+            "stage3_projects_by_id": self.stage3_store.projects_by_id,
+            "stage3_milestones_by_id": self.stage3_store.milestones_by_id,
+        }
+
+    def _restore_runtime_state(self) -> None:
+        if self.runtime_store is None:
+            return
+        snapshot = self.runtime_store.load(state_key="app_state")
+        if not isinstance(snapshot, dict):
+            return
+        ids = snapshot.get("ids")
+        if isinstance(ids, dict):
+            self.ids = DemoIds(**ids)
+        self.stage0_store = snapshot.get("stage0_store") or Stage0Store.empty()
+        self.stage05_store = snapshot.get("stage05_store") or EnterpriseStore.empty()
+        self.stage1a_store = snapshot.get("stage1a_store") or Stage1AStore.empty()
+        self.stage1a_ingestion_store = snapshot.get("stage1a_ingestion_store") or IngestionStore.empty()
+        self.stage1b_repo = Stage1BInMemoryRepository()
+        ticket_store = snapshot.get("stage1b_ticket_store")
+        notification_store = snapshot.get("stage1b_notification_store")
+        if ticket_store is not None:
+            self.stage1b_repo.save_ticket_store(ticket_store)
+        if notification_store is not None:
+            self.stage1b_repo.save_notification_store(notification_store)
+        self.stage1b_service = Stage1BRuntimeService(self.stage1b_repo)
+        self.sessions_by_token = dict(snapshot.get("sessions_by_token") or {})
+        self.session_token_by_role = dict(snapshot.get("session_token_by_role") or {})
+        self.last_letter_id = snapshot.get("last_letter_id")
+        self.last_instruction_id = snapshot.get("last_instruction_id")
+        self.last_webhook_subscription_id = snapshot.get("last_webhook_subscription_id")
+        self.last_connector_run_id = snapshot.get("last_connector_run_id")
+        self.last_api_credential_id = snapshot.get("last_api_credential_id")
+        self.last_task_template_id = snapshot.get("last_task_template_id")
+        self.last_audit_export_id = snapshot.get("last_audit_export_id")
+        self.last_stage1a_upload_job_id = snapshot.get("last_stage1a_upload_job_id")
+        self.stage1a_quality_baseline = snapshot.get("stage1a_quality_baseline")
+        self.feedback_entries = list(snapshot.get("feedback_entries") or [])
+        self.telemetry_events = list(snapshot.get("telemetry_events") or [])
+        self.stage3_store.repository.close()
+        self.stage3_store = Stage3RuntimeStore.bootstrap(
+            db_path=str(self.stage3_db_path),
+            feature_store_data=snapshot.get("stage3_feature_store_data"),
+            model_registry_store=snapshot.get("stage3_model_registry_store"),
+            projects_by_id=snapshot.get("stage3_projects_by_id") or {},
+            milestones_by_id=snapshot.get("stage3_milestones_by_id") or {},
+        )
+        self.stage3_api = Stage3RuntimeAPI(self.stage3_store)
+
+    def persist_if_configured(self) -> None:
+        if self.runtime_store is None:
+            return
+        self.runtime_store.save(state_key="app_state", payload=self._runtime_snapshot())
+
     def _resolve_ahj_with_shovels(self, *, address: dict) -> dict | None:
         api_key = os.environ.get("ATLASLY_SHOVELS_API_KEY", "").strip()
         if not api_key:
@@ -225,6 +361,31 @@ class DemoAppState:
                 postal_code=postal_code,
             )
         )
+
+    def _placeholder_env_warnings(self) -> list[str]:
+        checks = {
+            "ATLASLY_SHOVELS_API_KEY": os.environ.get("ATLASLY_SHOVELS_API_KEY", ""),
+            "ATLASLY_ACCELA_APP_ID": os.environ.get("ATLASLY_ACCELA_APP_ID", ""),
+        }
+        warnings: list[str] = []
+        for env_name, raw_value in checks.items():
+            value = str(raw_value or "").strip().lower()
+            if not value:
+                continue
+            if value.startswith("your_") or value.endswith("_here") or "placeholder" in value:
+                warnings.append(f"placeholder_env:{env_name}")
+        return warnings
+
+    def resolve_internal_permit_id(self, *, connector: str, ahj_id: str, external_permit_id: str) -> str | None:
+        binding = self.stage2_repo.get_external_permit_binding_by_external_id(
+            organization_id=self.ids.organization_id if self.ids else "",
+            connector=connector,
+            ahj_id=ahj_id,
+            external_permit_id=external_permit_id,
+        )
+        if not binding:
+            return None
+        return str(binding.get("permit_id") or "").strip() or None
 
     def enterprise_alerts(self) -> dict:
         if not self.ids:
@@ -360,6 +521,7 @@ class DemoAppState:
         stripe_ready = (not stripe_required) or (
             stripe_key_present and (stripe_webhook_secret_present if enforce_stage3_signatures else True)
         )
+        placeholder_warnings = self._placeholder_env_warnings()
 
         blockers: list[str] = []
         if not shovels_key_present:
@@ -374,12 +536,15 @@ class DemoAppState:
             blockers.append("missing_env:ATLASLY_STRIPE_SECRET_KEY")
         if stripe_required and enforce_stage3_signatures and not stripe_webhook_secret_present:
             blockers.append("missing_env:ATLASLY_STAGE3_PROVIDER_WEBHOOK_SECRET")
+        if self._has_prod_like_tier():
+            blockers.extend(placeholder_warnings)
 
         return {
             "bootstrapped": True,
             "generated_at": _iso(),
             "overall_ready": len(blockers) == 0,
             "launch_blockers": sorted(set(blockers)),
+            "warnings": placeholder_warnings,
             "stage2": {
                 "shovels_api_key_present": shovels_key_present,
                 "accela_api": accela,
@@ -636,12 +801,23 @@ class DemoAppState:
 
     def sessions_payload(self) -> dict:
         if not self.ids:
-            return {"bootstrapped": False, "sessions": []}
+            return {
+                "bootstrapped": False,
+                "sessions": [],
+                "runtime": {
+                    "deployment_tier": self.deployment_tier,
+                    "demo_routes_enabled": self.demo_routes_enabled,
+                },
+            }
         payload = self._session_payload()
         return {
             "bootstrapped": True,
             "generated_at": _iso(),
             "sessions": payload.get("sessions", []),
+            "runtime": {
+                "deployment_tier": self.deployment_tier,
+                "demo_routes_enabled": self.demo_routes_enabled,
+            },
         }
 
     def reset_workspace(self, *, bootstrap: bool = True) -> dict:
@@ -654,11 +830,12 @@ class DemoAppState:
         except Exception:  # noqa: BLE001
             pass
 
-        if self.stage2_db_path.exists():
-            try:
-                self.stage2_db_path.unlink()
-            except Exception:  # noqa: BLE001
-                pass
+        for target in (self.stage2_db_path, self.stage3_db_path):
+            if target.exists():
+                try:
+                    target.unlink()
+                except Exception:  # noqa: BLE001
+                    pass
 
         self.stage0_store = Stage0Store.empty()
         self.stage05_store = EnterpriseStore.empty()
@@ -668,7 +845,8 @@ class DemoAppState:
         self.stage1b_service = Stage1BRuntimeService(self.stage1b_repo)
         self.stage2_db_path.parent.mkdir(parents=True, exist_ok=True)
         self.stage2_repo = Stage2SQLiteRepository(db_path=str(self.stage2_db_path))
-        self.stage3_store = Stage3RuntimeStore.bootstrap()
+        self.stage3_db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.stage3_store = Stage3RuntimeStore.bootstrap(db_path=str(self.stage3_db_path))
         self.stage3_api = Stage3RuntimeAPI(self.stage3_store)
 
         self.ids = None
@@ -685,10 +863,16 @@ class DemoAppState:
         self.stage1a_quality_baseline = None
         self.feedback_entries = []
         self.telemetry_events = []
+        if self.runtime_store is not None:
+            self.runtime_store.delete(state_key="app_state")
 
         if bootstrap:
-            return self.bootstrap()
-        return self.summary()
+            payload = self.bootstrap()
+            self.persist_if_configured()
+            return payload
+        payload = self.summary()
+        self.persist_if_configured()
+        return payload
 
     def record_feedback(
         self,
@@ -766,8 +950,10 @@ class DemoAppState:
     def allowed_roles_for_route(self, *, method: str, path: str) -> set[str] | None:
         if not path.startswith("/api/"):
             return None
-        if path in {"/api/health", "/api/bootstrap", "/api/demo/reset"}:
+        if path in {"/api/health", "/api/bootstrap"}:
             return None
+        if path in {"/api/demo/reset", "/api/demo/run-scenario"}:
+            return None if self.demo_routes_enabled else ENTERPRISE_WRITE_ROLES
         if path == "/api/summary":
             return None if self.ids is None else ALL_SESSION_ROLES
 
@@ -784,6 +970,7 @@ class DemoAppState:
                 "/api/stage1a/quality-report",
                 "/api/stage2/timeline",
                 "/api/stage2/connector-credentials",
+                "/api/stage2/permit-bindings",
             }:
                 return CONTROL_TOWER_READ_ROLES
             if path in {
@@ -820,6 +1007,7 @@ class DemoAppState:
                 "/api/stage2/poll-live",
                 "/api/stage2/resolve-ahj",
                 "/api/stage2/connector-credentials/rotate",
+                "/api/stage2/permit-bindings",
                 "/api/permit-ops/resolve-transition",
                 "/api/permit-ops/resolve-drift",
             }:
@@ -1001,20 +1189,44 @@ class DemoAppState:
             return payload
 
         now = datetime.now(timezone.utc)
-        slug = f"atlasly-demo-{uuid.uuid4().hex[:6]}"
-        owner_email = f"owner+{slug}@atlasly.dev"
-        admin_email = f"admin+{slug}@atlasly.dev"
-        pm_email = f"pm+{slug}@atlasly.dev"
-        reviewer_email = f"reviewer+{slug}@atlasly.dev"
-        subcontractor_email = f"subcontractor+{slug}@atlasly.dev"
+        if self.demo_routes_enabled:
+            slug = f"atlasly-demo-{uuid.uuid4().hex[:6]}"
+            org_name = "Atlasly Demo Builders"
+            owner_name = "Demo Owner"
+            admin_name = "Demo Admin"
+            pm_name = "Demo PM"
+            reviewer_name = "Demo Reviewer"
+            subcontractor_name = "Demo Subcontractor"
+            owner_email = f"owner+{slug}@atlasly.dev"
+            admin_email = f"admin+{slug}@atlasly.dev"
+            pm_email = f"pm+{slug}@atlasly.dev"
+            reviewer_email = f"reviewer+{slug}@atlasly.dev"
+            subcontractor_email = f"subcontractor+{slug}@atlasly.dev"
+        else:
+            slug = str(os.environ.get("ATLASLY_BOOTSTRAP_ORG_SLUG") or "atlasly-pilot").strip().lower()
+            org_name = str(os.environ.get("ATLASLY_BOOTSTRAP_ORG_NAME") or "Atlasly Pilot Workspace").strip()
+            owner_name = str(os.environ.get("ATLASLY_BOOTSTRAP_OWNER_NAME") or "Pilot Owner").strip()
+            admin_name = str(os.environ.get("ATLASLY_BOOTSTRAP_ADMIN_NAME") or "Pilot Admin").strip()
+            pm_name = str(os.environ.get("ATLASLY_BOOTSTRAP_PM_NAME") or "Pilot PM").strip()
+            reviewer_name = str(os.environ.get("ATLASLY_BOOTSTRAP_REVIEWER_NAME") or "Pilot Reviewer").strip()
+            subcontractor_name = str(
+                os.environ.get("ATLASLY_BOOTSTRAP_SUBCONTRACTOR_NAME") or "Pilot Subcontractor"
+            ).strip()
+            owner_email = str(os.environ.get("ATLASLY_BOOTSTRAP_OWNER_EMAIL") or "owner@atlasly.local").strip()
+            admin_email = str(os.environ.get("ATLASLY_BOOTSTRAP_ADMIN_EMAIL") or "admin@atlasly.local").strip()
+            pm_email = str(os.environ.get("ATLASLY_BOOTSTRAP_PM_EMAIL") or "pm@atlasly.local").strip()
+            reviewer_email = str(os.environ.get("ATLASLY_BOOTSTRAP_REVIEWER_EMAIL") or "reviewer@atlasly.local").strip()
+            subcontractor_email = str(
+                os.environ.get("ATLASLY_BOOTSTRAP_SUBCONTRACTOR_EMAIL") or "subcontractor@atlasly.local"
+            ).strip()
 
         status_org, payload_org = post_orgs_api(
             request_body={
-                "name": "Atlasly Demo Builders",
+                "name": org_name,
                 "slug": slug,
                 "owner_user": {
                     "email": owner_email,
-                    "full_name": "Demo Owner",
+                    "full_name": owner_name,
                 },
             },
             headers={"Idempotency-Key": f"idem-{slug}"},
@@ -1034,7 +1246,7 @@ class DemoAppState:
             org_id=org_id,
             request_body={
                 "email": pm_email,
-                "full_name": "Demo PM",
+                "full_name": pm_name,
                 "role": "pm",
                 "workspace_id": None,
             },
@@ -1050,7 +1262,7 @@ class DemoAppState:
             org_id=org_id,
             request_body={
                 "email": admin_email,
-                "full_name": "Demo Admin",
+                "full_name": admin_name,
                 "role": "admin",
                 "workspace_id": None,
             },
@@ -1066,7 +1278,7 @@ class DemoAppState:
             org_id=org_id,
             request_body={
                 "email": reviewer_email,
-                "full_name": "Demo Reviewer",
+                "full_name": reviewer_name,
                 "role": "reviewer",
                 "workspace_id": None,
             },
@@ -1082,7 +1294,7 @@ class DemoAppState:
             org_id=org_id,
             request_body={
                 "email": subcontractor_email,
-                "full_name": "Demo Subcontractor",
+                "full_name": subcontractor_name,
                 "role": "subcontractor",
                 "workspace_id": None,
             },
@@ -1189,6 +1401,16 @@ class DemoAppState:
 
         summary = {
             "bootstrapped": ids is not None,
+            "runtime": {
+                "deployment_tier": self.deployment_tier,
+                "demo_routes_enabled": self.demo_routes_enabled,
+                "runtime_backend": self.stage05_runtime_backend,
+                "persistence_ready": self.stage05_persistence_ready,
+                "runtime_state_path": None if self.runtime_store is None else str(self.runtime_state_db_path),
+                "stage2_db_path": str(self.stage2_db_path),
+                "stage3_db_path": str(self.stage3_db_path),
+                "warnings": self._placeholder_env_warnings(),
+            },
             "ids": None if ids is None else {
                 "organization_id": ids.organization_id,
                 "workspace_id": ids.workspace_id,
@@ -2059,6 +2281,24 @@ class WebHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"items": rows, "count": len(rows)})
                 return
 
+            if path == "/api/stage2/permit-bindings":
+                if not STATE.ids:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "bootstrap required"})
+                    return
+                qp = parse_qs(parsed.query)
+                connector = str(qp.get("connector", [""])[0]).strip().lower() or None
+                ahj_id = str(qp.get("ahj_id", [""])[0]).strip().lower() or None
+                permit_id = str(qp.get("permit_id", [""])[0]).strip() or None
+                rows = STATE.stage2_repo.list_external_permit_bindings(
+                    organization_id=STATE.ids.organization_id,
+                    connector=connector,
+                    ahj_id=ahj_id,
+                    permit_id=permit_id,
+                    limit=100,
+                )
+                self._json(HTTPStatus.OK, {"items": rows, "count": len(rows)})
+                return
+
             if path == "/api/stage3/outbox":
                 events = STATE.stage3_store.repository.list_outbox_events(publish_state=None, limit=200)
                 self._json(HTTPStatus.OK, {"events": events})
@@ -2159,6 +2399,17 @@ class WebHandler(BaseHTTPRequestHandler):
         body = self._read_json_body()
 
         try:
+            if path in {"/api/demo/reset", "/api/demo/run-scenario"} and not STATE.demo_routes_enabled:
+                self._json(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "error": {
+                            "code": "route_disabled_in_tier",
+                            "message": f"{path} is disabled for deployment tier {STATE.deployment_tier}",
+                        }
+                    },
+                )
+                return
             session = self._authorize_request(method="POST", path=path)
             if path == "/api/bootstrap":
                 payload = STATE.bootstrap()
@@ -2983,6 +3234,53 @@ class WebHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"credential": record})
                 return
 
+            if path == "/api/stage2/permit-bindings":
+                if not STATE.ids:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "bootstrap required"})
+                    return
+                connector = str(body.get("connector") or "accela_api").strip().lower()
+                ahj_id = str(body.get("ahj_id") or "").strip().lower()
+                permit_id = str(body.get("permit_id") or "").strip()
+                external_permit_id = str(body.get("external_permit_id") or "").strip()
+                if not ahj_id:
+                    self._json(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        {"error": {"code": "validation_error", "message": "ahj_id is required"}},
+                    )
+                    return
+                if not permit_id:
+                    self._json(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        {"error": {"code": "validation_error", "message": "permit_id is required"}},
+                    )
+                    return
+                if not external_permit_id:
+                    self._json(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        {"error": {"code": "validation_error", "message": "external_permit_id is required"}},
+                    )
+                    return
+                if permit_id not in STATE.stage0_store.permits_by_id:
+                    self._json(
+                        HTTPStatus.NOT_FOUND,
+                        {"error": {"code": "not_found", "message": "internal permit not found"}},
+                    )
+                    return
+                binding = STATE.stage2_repo.upsert_external_permit_binding(
+                    organization_id=STATE.ids.organization_id,
+                    connector=connector,
+                    ahj_id=ahj_id,
+                    permit_id=permit_id,
+                    external_permit_id=external_permit_id,
+                    external_record_ref=(
+                        None if body.get("external_record_ref") in {None, ""} else str(body.get("external_record_ref"))
+                    ),
+                    metadata_json=body.get("metadata") if isinstance(body.get("metadata"), dict) else {},
+                    created_by=STATE.ids.owner_user_id,
+                )
+                self._json(HTTPStatus.OK, {"binding": binding})
+                return
+
             if path == "/api/stage2/intake-complete":
                 if not STATE.ids:
                     STATE.bootstrap()
@@ -3132,6 +3430,7 @@ class WebHandler(BaseHTTPRequestHandler):
                     return
                 connector = str(body.get("connector") or "accela_api").strip().lower()
                 ahj_id = str(body.get("ahj_id") or "ca.san_jose.building").strip().lower()
+                live_credential_ref = str(body.get("credential_ref") or "").strip()
                 try:
                     adapter = build_live_connector_adapter(
                         organization_id=STATE.ids.organization_id,
@@ -3156,6 +3455,11 @@ class WebHandler(BaseHTTPRequestHandler):
                     repository=STATE.stage2_repo,
                     rules=None,
                     max_attempts=2,
+                    permit_id_resolver=lambda obs: STATE.resolve_internal_permit_id(
+                        connector=connector,
+                        ahj_id=ahj_id,
+                        external_permit_id=obs.permit_id,
+                    ),
                 )
                 timeline_status, timeline = get_status_timeline_persisted(
                     permit_id=STATE.ids.permit_id,
@@ -3163,12 +3467,23 @@ class WebHandler(BaseHTTPRequestHandler):
                     auth_context=STATE._stage2_sync_auth(),
                     repository=STATE.stage2_repo,
                 )
+                operator_messages = list(result.get("errors") or [])
+                unmapped = list(result.get("unmapped_observations") or [])
+                if unmapped:
+                    operator_messages.append(
+                        f"{len(unmapped)} external permit records are unmapped; create Atlasly permit bindings before rerunning."
+                    )
+                if live_credential_ref:
+                    operator_messages.append(
+                        f"validated connector credential ref: {live_credential_ref}"
+                    )
                 self._json(
                     HTTPStatus.OK,
                     {
                         "poll_result": result,
                         "timeline_status": timeline_status,
                         "timeline": timeline,
+                        "operator_messages": operator_messages,
                     },
                 )
                 return
@@ -3378,6 +3693,11 @@ class WebHandler(BaseHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def _json(self, status: HTTPStatus, payload: dict) -> None:
+        if self.command != "GET":
+            try:
+                STATE.persist_if_configured()
+            except Exception:  # noqa: BLE001
+                pass
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -3425,7 +3745,14 @@ def run(host: str | None = None, port: int | None = None) -> None:
     bind_host = host or os.environ.get("ATLASLY_HOST", "127.0.0.1")
     bind_port = port or int(os.environ.get("ATLASLY_PORT", "8080"))
     server = HTTPServer((bind_host, bind_port), WebHandler)
-    print(f"Atlasly demo webapp running at http://{bind_host}:{bind_port}", flush=True)
+    print(
+        f"Atlasly webapp running at http://{bind_host}:{bind_port} "
+        f"(tier={STATE.deployment_tier}, demo_routes_enabled={STATE.demo_routes_enabled})",
+        flush=True,
+    )
+    warnings = STATE._placeholder_env_warnings()
+    if warnings and STATE._has_prod_like_tier():
+        print(f"Runtime warnings: {', '.join(warnings)}", flush=True)
     print("Press Ctrl+C to stop.", flush=True)
     server.serve_forever()
 

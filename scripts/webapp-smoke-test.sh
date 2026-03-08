@@ -43,6 +43,9 @@ bootstrap_resp="$(curl -sSf -X POST "${BASE_URL}/api/bootstrap" -H "Content-Type
 python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["bootstrapped"] is True' <<<"${bootstrap_resp}"
 AUTH_TOKEN="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("session",{}).get("token",""))' <<<"${bootstrap_resp}")"
 if [[ -z "${AUTH_TOKEN}" ]]; then
+  AUTH_TOKEN="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("sessions") or [{}])[0].get("token",""))' <<<"${bootstrap_resp}")"
+fi
+if [[ -z "${AUTH_TOKEN}" ]]; then
   echo "Missing session token in bootstrap response"
   exit 1
 fi

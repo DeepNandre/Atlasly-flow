@@ -85,6 +85,22 @@ class Stage2SQLiteRepository:
               updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS external_permit_bindings (
+              id TEXT PRIMARY KEY,
+              organization_id TEXT NOT NULL,
+              connector TEXT NOT NULL,
+              ahj_id TEXT NOT NULL,
+              permit_id TEXT NOT NULL,
+              external_permit_id TEXT NOT NULL,
+              external_record_ref TEXT,
+              metadata_json TEXT NOT NULL DEFAULT '{}',
+              created_by TEXT,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              UNIQUE (organization_id, connector, ahj_id, permit_id),
+              UNIQUE (organization_id, connector, ahj_id, external_permit_id)
+            );
+
             CREATE TABLE IF NOT EXISTS permit_status_events (
               id TEXT PRIMARY KEY,
               organization_id TEXT NOT NULL,
@@ -183,6 +199,9 @@ class Stage2SQLiteRepository:
 
             CREATE UNIQUE INDEX IF NOT EXISTS uq_connector_credentials_org_connector_ahj
               ON connector_credentials (organization_id, connector, IFNULL(ahj_id, '__global__'));
+
+            CREATE INDEX IF NOT EXISTS idx_external_permit_bindings_org_connector
+              ON external_permit_bindings (organization_id, connector, ahj_id, updated_at DESC);
             """
         )
         self.conn.commit()
@@ -209,10 +228,123 @@ class Stage2SQLiteRepository:
             "details_json",
             "payload",
             "scopes_json",
+            "metadata_json",
         ):
             if key in out and isinstance(out[key], str):
                 out[key] = json.loads(out[key])
         return out
+
+    def upsert_external_permit_binding(
+        self,
+        *,
+        organization_id: str,
+        connector: str,
+        ahj_id: str,
+        permit_id: str,
+        external_permit_id: str,
+        external_record_ref: str | None,
+        metadata_json: dict | None,
+        created_by: str | None,
+    ) -> dict:
+        now = self._now_iso()
+        existing = self.conn.execute(
+            """
+            SELECT * FROM external_permit_bindings
+            WHERE organization_id = ? AND connector = ? AND ahj_id = ? AND permit_id = ?
+            """,
+            (organization_id, connector, ahj_id, permit_id),
+        ).fetchone()
+        record = {
+            "id": str(uuid.uuid4()) if existing is None else str(existing["id"]),
+            "organization_id": organization_id,
+            "connector": connector,
+            "ahj_id": ahj_id,
+            "permit_id": permit_id,
+            "external_permit_id": external_permit_id,
+            "external_record_ref": external_record_ref,
+            "metadata_json": metadata_json or {},
+            "created_by": created_by,
+            "created_at": now if existing is None else str(existing["created_at"]),
+            "updated_at": now,
+        }
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO external_permit_bindings (
+                  id, organization_id, connector, ahj_id, permit_id, external_permit_id,
+                  external_record_ref, metadata_json, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(organization_id, connector, ahj_id, permit_id) DO UPDATE SET
+                  external_permit_id = excluded.external_permit_id,
+                  external_record_ref = excluded.external_record_ref,
+                  metadata_json = excluded.metadata_json,
+                  created_by = excluded.created_by,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    record["id"],
+                    record["organization_id"],
+                    record["connector"],
+                    record["ahj_id"],
+                    record["permit_id"],
+                    record["external_permit_id"],
+                    record["external_record_ref"],
+                    self._json(record["metadata_json"]),
+                    record["created_by"],
+                    record["created_at"],
+                    record["updated_at"],
+                ),
+            )
+        return record
+
+    def list_external_permit_bindings(
+        self,
+        *,
+        organization_id: str,
+        connector: str | None = None,
+        ahj_id: str | None = None,
+        permit_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        clauses = ["organization_id = ?"]
+        params: list[object] = [organization_id]
+        if connector:
+            clauses.append("connector = ?")
+            params.append(connector)
+        if ahj_id:
+            clauses.append("ahj_id = ?")
+            params.append(ahj_id)
+        if permit_id:
+            clauses.append("permit_id = ?")
+            params.append(permit_id)
+        params.append(max(1, int(limit)))
+        rows = self.conn.execute(
+            f"""
+            SELECT * FROM external_permit_bindings
+            WHERE {' AND '.join(clauses)}
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            tuple(params),
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_external_permit_binding_by_external_id(
+        self,
+        *,
+        organization_id: str,
+        connector: str,
+        ahj_id: str,
+        external_permit_id: str,
+    ) -> dict | None:
+        row = self.conn.execute(
+            """
+            SELECT * FROM external_permit_bindings
+            WHERE organization_id = ? AND connector = ? AND ahj_id = ? AND external_permit_id = ?
+            """,
+            (organization_id, connector, ahj_id, external_permit_id),
+        ).fetchone()
+        return self._row_to_dict(row)
 
     def count_rows(self, table_name: str) -> int:
         row = self.conn.execute(f"SELECT COUNT(*) AS c FROM {table_name}").fetchone()

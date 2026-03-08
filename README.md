@@ -15,6 +15,7 @@
 - Sprint 6 delivery log: [Sprint 6 Delivery](docs/implementation/sprint-6-delivery.md)
 - Release rollout checklist: [Canary Plan](docs/implementation/release-canary-plan.md)
 - Demo hosting guide: [Demo Hosting](docs/implementation/demo-hosting.md)
+- Pilot hosting guide: [Pilot Hosting](docs/implementation/pilot-hosting.md)
 - Stage 3 webhook security notes: [Stage 3 Security Hardening](docs/implementation/stage-3/security-hardening.md)
 
 ## Webapp Demo
@@ -22,9 +23,24 @@
 - Container run: `bash scripts/run-demo-container.sh`
 - Open: `http://127.0.0.1:8080`
 - Smoke test: `bash scripts/webapp-smoke-test.sh`
+- Pilot smoke test: `bash scripts/pilot-smoke-test.sh`
 - Frontend browser smoke: `bash scripts/frontend-browser-smoke.sh`
 - Live credential validation: `bash scripts/run-live-validations.sh`
 - Full hard-gate suite: `bash scripts/mvp-gates.sh`
+
+## Hosted Pilot Notes
+- Set `ATLASLY_DEPLOYMENT_TIER=mvp` or `pilot` in Railway.
+- Set `ATLASLY_DATA_DIR=/data` when using a mounted volume for persistent hosted state.
+- `ATLASLY_STAGE05_RUNTIME_BACKEND=sqlite` and `ATLASLY_STAGE05_PERSISTENCE_READY=true` are required for pilot-safe mode.
+- Demo-only routes (`/api/demo/reset`, `/api/demo/run-scenario`) are disabled automatically outside demo tier.
+- Live Accela polling requires:
+  - `ATLASLY_ACCELA_APP_ID`
+  - `ATLASLY_CONNECTOR_SECRET_<REF>` containing an OAuth access token, not the app secret
+  - an Atlasly internal permit binding created for the target external permit id
+- The browser Integrations page now exposes:
+  - credential ref updates
+  - external permit binding creation
+  - live connector poll operator output
 
 ## Frontend
 - Source app: `/Users/deepnandre/Desktop/Atlasly-flow/frontend`

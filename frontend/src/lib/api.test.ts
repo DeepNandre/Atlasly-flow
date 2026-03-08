@@ -35,9 +35,9 @@ describe('api helpers', () => {
       }),
     }))
 
-    const sessions = await fetchSessions()
-    expect(sessions).toHaveLength(2)
-    expect(sessions[1].role).toBe('admin')
+    const payload = await fetchSessions()
+    expect(payload.sessions).toHaveLength(2)
+    expect(payload.sessions[1].role).toBe('admin')
   })
 
   it('throws ApiError with nested error message', async () => {

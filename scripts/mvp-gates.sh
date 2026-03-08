@@ -31,6 +31,7 @@ python3 -m unittest discover -s tests/stage3 -p 'test_*.py'
 echo "[gate] Control Tower"
 python3 -m unittest discover -s tests/webapp -p 'test_*.py'
 bash scripts/webapp-smoke-test.sh
+bash scripts/pilot-smoke-test.sh
 
 echo "[gate] Migration Tooling"
 python3 -m unittest tests/db/test_migration_orchestrator.py

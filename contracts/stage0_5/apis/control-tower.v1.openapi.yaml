@@ -68,6 +68,18 @@ paths:
       responses:
         "200":
           description: Session roster payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runtime:
+                    type: object
+                    properties:
+                      deployment_tier:
+                        type: string
+                      demo_routes_enabled:
+                        type: boolean
   /api/demo/reset:
     post:
       summary: Reset demo state and optionally bootstrap a fresh workspace
@@ -853,6 +865,35 @@ paths:
       responses:
         "200":
           description: Live poll completed
+  /api/stage2/permit-bindings:
+    get:
+      summary: List Atlasly internal to external permit bindings
+      responses:
+        "200":
+          description: Permit binding list
+    post:
+      summary: Create or update a permit binding for live connector polling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connector, ahj_id, permit_id, external_permit_id]
+              properties:
+                connector:
+                  type: string
+                ahj_id:
+                  type: string
+                permit_id:
+                  type: string
+                external_permit_id:
+                  type: string
+                external_record_ref:
+                  type: string
+      responses:
+        "200":
+          description: Permit binding updated
   /api/stage3/payout:
     post:
       summary: Create payout instruction from control tower finance ops panel

@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react'
 import { CheckCircle, Plug, RefreshCw, ShieldAlert, XCircle } from 'lucide-react'
-import { useConnectorCredentials, useConnectorSync, useIntegrationsReadiness, useLaunchReadiness, useRotateCredentials, useSlo } from '@/hooks/useApi'
+import {
+  useConnectorCredentials,
+  useConnectorSync,
+  useCreatePermitBinding,
+  useIntegrationsReadiness,
+  useLaunchReadiness,
+  usePermitBindings,
+  usePermits,
+  usePollLiveConnector,
+  useRotateCredentials,
+  useSlo,
+  useSummary,
+} from '@/hooks/useApi'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { SkeletonCard } from '@/components/shared/Skeleton'
@@ -17,25 +29,54 @@ const CONNECTORS = [
 ]
 
 export default function IntegrationsPage() {
+  const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
+  const [rotateTarget, setRotateTarget] = useState('accela_api')
+  const [credentialRef, setCredentialRef] = useState('')
+  const [bindingPermitId, setBindingPermitId] = useState('')
+  const [bindingAhjId, setBindingAhjId] = useState('ca.san_jose.building')
+  const [bindingExternalPermitId, setBindingExternalPermitId] = useState('')
+  const [livePollOutput, setLivePollOutput] = useState<null | {
+    status?: string
+    observationsProcessed?: number
+    observationsApplied?: number
+    observationsReviewed?: number
+    unmappedObservations?: number
+    operatorMessages: string[]
+  }>(null)
+
   const readinessQuery = useIntegrationsReadiness()
   const slo = useSlo()
   const launchReadiness = useLaunchReadiness()
   const connectorSync = useConnectorSync()
+  const livePoll = usePollLiveConnector()
   const rotateCredentials = useRotateCredentials()
   const allCredentials = useConnectorCredentials()
-
-  const [rotateDialogOpen, setRotateDialogOpen] = useState(false)
-  const [rotateTarget, setRotateTarget] = useState('accela_api')
-  const [credentialRef, setCredentialRef] = useState('')
+  const permitsQuery = usePermits()
+  const summaryQuery = useSummary()
+  const permitBindings = usePermitBindings(rotateTarget)
+  const createPermitBinding = useCreatePermitBinding()
 
   const readiness = (readinessQuery.data as {
     overall_ready?: boolean
     launch_blockers?: string[]
+    warnings?: string[]
     stage2?: Record<string, unknown>
     stage3?: Record<string, unknown>
   } | undefined)
   const stage2 = readiness?.stage2 as Record<string, unknown> | undefined
   const error = readinessQuery.error ?? slo.error ?? launchReadiness.error
+  const runtimeWarnings = (
+    (summaryQuery.data as { runtime?: { warnings?: string[] } } | undefined)?.runtime?.warnings
+      ?? readiness?.warnings
+      ?? []
+  ) as string[]
+  const portfolioProjects = ((permitsQuery.data as { projects?: Array<Record<string, unknown>> } | undefined)?.projects ?? [])
+  const permitOptions = portfolioProjects.flatMap((project) =>
+    (((project.permits as Array<Record<string, unknown>> | undefined) ?? []).map((permit) => ({
+      permitId: String(permit.permit_id ?? permit.id ?? ''),
+      label: `${String(project.name ?? 'Project')} - ${String(permit.permit_type ?? 'permit').replace(/_/g, ' ')}`,
+    }))),
+  )
 
   const connectorCards = useMemo(() => {
     const credentials = ((allCredentials.data as { items?: Array<Record<string, unknown>> } | undefined)?.items ?? [])
@@ -136,6 +177,13 @@ export default function IntegrationsPage() {
                 <p key={blocker}>• {blocker}</p>
               ))}
             </div>
+            {runtimeWarnings.length > 0 ? (
+              <div className="rounded-md border border-atlasly-warn/40 bg-atlasly-warn/10 px-3 py-2 text-xs text-atlasly-ink">
+                {runtimeWarnings.map((warning) => (
+                  <p key={warning}>Warning: {warning}</p>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -157,6 +205,176 @@ export default function IntegrationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Live Connector Poll</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-atlasly-muted">
+            Validate the hosted live permit path using a saved credential ref and a mapped external permit id.
+          </p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="live_connector">Connector</Label>
+              <select
+                id="live_connector"
+                value={rotateTarget}
+                onChange={(event) => setRotateTarget(event.target.value)}
+                className="h-10 w-full rounded-md border border-atlasly-line bg-white px-3 text-sm"
+              >
+                {CONNECTORS.map((connector) => (
+                  <option key={connector.key} value={connector.key}>{connector.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="live_ahj">AHJ id</Label>
+              <Input id="live_ahj" value={bindingAhjId} onChange={(event) => setBindingAhjId(event.target.value)} autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="live_credential_ref">Credential ref</Label>
+              <Input
+                id="live_credential_ref"
+                value={credentialRef}
+                onChange={(event) => setCredentialRef(event.target.value)}
+                placeholder="accela_prod_token"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => {
+                livePoll.mutate(
+                  {
+                    connector: rotateTarget,
+                    ahj_id: bindingAhjId,
+                    credential_ref: credentialRef || undefined,
+                  },
+                  {
+                    onSuccess: (payload) => {
+                      const result = payload as {
+                        poll_result?: {
+                          run?: { status?: string }
+                          observations_processed?: number
+                          observations_applied?: number
+                          observations_reviewed?: number
+                          unmapped_observations?: unknown[]
+                        }
+                        operator_messages?: string[]
+                      }
+                      setLivePollOutput({
+                        status: result.poll_result?.run?.status,
+                        observationsProcessed: result.poll_result?.observations_processed,
+                        observationsApplied: result.poll_result?.observations_applied,
+                        observationsReviewed: result.poll_result?.observations_reviewed,
+                        unmappedObservations: result.poll_result?.unmapped_observations?.length ?? 0,
+                        operatorMessages: result.operator_messages ?? [],
+                      })
+                    },
+                  },
+                )
+              }}
+              disabled={!bindingAhjId.trim() || livePoll.isPending}
+            >
+              {livePoll.isPending ? 'Running…' : 'Run Live Poll'}
+            </Button>
+            <p className="text-xs text-atlasly-muted">Use an OAuth token-backed secret env, not the Accela app secret.</p>
+          </div>
+          {livePollOutput ? (
+            <div className="rounded-md border border-atlasly-line px-4 py-3 text-sm">
+              <div className="grid gap-2 md:grid-cols-5">
+                <div><span className="text-atlasly-muted">Status</span><p className="font-medium text-atlasly-ink">{livePollOutput.status ?? 'unknown'}</p></div>
+                <div><span className="text-atlasly-muted">Processed</span><p className="font-medium text-atlasly-ink">{livePollOutput.observationsProcessed ?? 0}</p></div>
+                <div><span className="text-atlasly-muted">Applied</span><p className="font-medium text-atlasly-ink">{livePollOutput.observationsApplied ?? 0}</p></div>
+                <div><span className="text-atlasly-muted">Reviewed</span><p className="font-medium text-atlasly-ink">{livePollOutput.observationsReviewed ?? 0}</p></div>
+                <div><span className="text-atlasly-muted">Unmapped</span><p className="font-medium text-atlasly-ink">{livePollOutput.unmappedObservations ?? 0}</p></div>
+              </div>
+              {livePollOutput.operatorMessages.length > 0 ? (
+                <div className="mt-3 space-y-1 text-xs text-atlasly-muted">
+                  {livePollOutput.operatorMessages.map((message) => (
+                    <p key={message}>• {message}</p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>External Permit Bindings</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-atlasly-muted">
+            Map an Atlasly permit to the external Accela/OpenGov record before running live polling.
+          </p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="binding_permit">Atlasly permit</Label>
+              <select
+                id="binding_permit"
+                value={bindingPermitId}
+                onChange={(event) => setBindingPermitId(event.target.value)}
+                className="h-10 w-full rounded-md border border-atlasly-line bg-white px-3 text-sm"
+              >
+                <option value="">Select permit</option>
+                {permitOptions.map((option) => (
+                  <option key={option.permitId} value={option.permitId}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="binding_ahj">AHJ id</Label>
+              <Input id="binding_ahj" value={bindingAhjId} onChange={(event) => setBindingAhjId(event.target.value)} autoComplete="off" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="binding_external">External permit id</Label>
+              <Input
+                id="binding_external"
+                value={bindingExternalPermitId}
+                onChange={(event) => setBindingExternalPermitId(event.target.value)}
+                placeholder="ALT-12345"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => {
+                createPermitBinding.mutate(
+                  {
+                    connector: rotateTarget,
+                    ahj_id: bindingAhjId,
+                    permit_id: bindingPermitId,
+                    external_permit_id: bindingExternalPermitId,
+                  },
+                  {
+                    onSuccess: () => {
+                      setBindingExternalPermitId('')
+                      permitBindings.refetch()
+                    },
+                  },
+                )
+              }}
+              disabled={!bindingPermitId || !bindingAhjId.trim() || !bindingExternalPermitId.trim() || createPermitBinding.isPending}
+            >
+              {createPermitBinding.isPending ? 'Saving…' : 'Save Binding'}
+            </Button>
+            <p className="text-xs text-atlasly-muted">Current connector: {rotateTarget}</p>
+          </div>
+          <div className="space-y-2">
+            {(((permitBindings.data as { items?: Array<Record<string, unknown>> } | undefined)?.items) ?? []).length === 0 ? (
+              <p className="text-xs text-atlasly-muted">No bindings saved for this connector yet.</p>
+            ) : (
+              (((permitBindings.data as { items?: Array<Record<string, unknown>> } | undefined)?.items) ?? []).map((row) => (
+                <div key={String(row.id)} className="rounded-md border border-atlasly-line px-3 py-2 text-xs">
+                  <div className="font-medium text-atlasly-ink">{String(row.permit_id)} {'->'} {String(row.external_permit_id)}</div>
+                  <div className="text-atlasly-muted mt-1">{String(row.connector)} / {String(row.ahj_id)}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={rotateDialogOpen} onOpenChange={setRotateDialogOpen}>
         <DialogContent>

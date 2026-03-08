@@ -1,1 +1,0 @@
-import{j as a,c as l}from"./index-VvlrF-uT.js";function x({className:e,colorClass:t,children:n,...s}){return a.jsx("span",{className:l("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",t??"bg-atlasly-line text-atlasly-ink",e),...s,children:n})}export{x as B};

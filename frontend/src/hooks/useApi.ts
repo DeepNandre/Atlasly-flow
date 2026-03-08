@@ -218,6 +218,23 @@ export function usePollPermitStatus() {
   })
 }
 
+export function usePollLiveConnector() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { connector: string; ahj_id: string; credential_ref?: string }) =>
+      api.post('/api/stage2/poll-live', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['portfolio'] })
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
+      qc.invalidateQueries({ queryKey: ['permit-timeline'] })
+      qc.invalidateQueries({ queryKey: ['integrations-readiness'] })
+      qc.invalidateQueries({ queryKey: ['launch-readiness'] })
+      toast.success('Live connector poll completed')
+    },
+    onError: (error: unknown) => toastError('Live connector poll failed', error),
+  })
+}
+
 export function useResolveTransition() {
   const qc = useQueryClient()
   return useMutation({
@@ -362,6 +379,32 @@ export function useConnectorCredentials(connector?: string) {
     queryKey: ['connector-credentials', connector],
     queryFn: () => api.get(`/api/stage2/connector-credentials${suffix}`),
     retry: 1,
+  })
+}
+
+export function usePermitBindings(connector?: string, ahjId?: string) {
+  const params = new URLSearchParams()
+  if (connector) params.set('connector', connector)
+  if (ahjId) params.set('ahj_id', ahjId)
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+  return useQuery({
+    queryKey: ['permit-bindings', connector, ahjId],
+    queryFn: () => api.get(`/api/stage2/permit-bindings${suffix}`),
+    retry: 1,
+  })
+}
+
+export function useCreatePermitBinding() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { connector: string; ahj_id: string; permit_id: string; external_permit_id: string; external_record_ref?: string }) =>
+      api.post('/api/stage2/permit-bindings', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['permit-bindings'] })
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
+      toast.success('Permit binding saved')
+    },
+    onError: (error: unknown) => toastError('Binding failed', error),
   })
 }
 

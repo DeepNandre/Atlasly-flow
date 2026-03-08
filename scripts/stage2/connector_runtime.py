@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+from typing import Callable
 
 from scripts.stage2.repositories import Stage2Repository
 from scripts.stage2.status_sync import AuthContext
@@ -81,6 +82,7 @@ def run_connector_poll_with_retries(
     rules: list[dict] | None = None,
     max_attempts: int = 3,
     now: datetime | None = None,
+    permit_id_resolver: Callable[[ConnectorObservation], str | None] | None = None,
 ) -> dict:
     ts = now or datetime.now(timezone.utc)
     _, run = post_connector_poll_persisted(
@@ -97,19 +99,34 @@ def run_connector_poll_with_retries(
     observations_processed = 0
     observations_applied = 0
     observations_reviewed = 0
+    unmapped_observations: list[dict] = []
     while attempts < max_attempts:
         attempts += 1
         try:
             observations = adapter.poll(ahj_id=ahj_id)
+            if not observations:
+                errors.append("no status observations returned for current connector query")
             for idx, obs in enumerate(observations):
+                resolved_permit_id = permit_id_resolver(obs) if permit_id_resolver is not None else obs.permit_id
+                if not resolved_permit_id:
+                    unmapped_observations.append(
+                        {
+                            "external_permit_id": obs.permit_id,
+                            "source": obs.source,
+                            "raw_status": obs.raw_status,
+                            "observed_at": obs.observed_at.astimezone(timezone.utc).isoformat(),
+                            "source_ref": obs.source_ref,
+                        }
+                    )
+                    continue
                 event_hash = _event_hash(
-                    permit_id=obs.permit_id,
+                    permit_id=resolved_permit_id,
                     raw_status=obs.raw_status,
                     observed_at=obs.observed_at,
                     source=obs.source,
                 )
                 result = record_status_observation_persisted(
-                    permit_id=obs.permit_id,
+                    permit_id=resolved_permit_id,
                     source=obs.source,
                     raw_status=obs.raw_status,
                     old_status=obs.old_status,
@@ -134,7 +151,10 @@ def run_connector_poll_with_retries(
                 if result["review"] is not None:
                     observations_reviewed += 1
 
-            run["status"] = "succeeded"
+            if unmapped_observations or not observations:
+                run["status"] = "partial"
+            else:
+                run["status"] = "succeeded"
             run["run_finished_at"] = datetime.now(timezone.utc).isoformat()
             repository.save_poll_run(run)
             return {
@@ -144,6 +164,7 @@ def run_connector_poll_with_retries(
                 "observations_applied": observations_applied,
                 "observations_reviewed": observations_reviewed,
                 "errors": errors,
+                "unmapped_observations": unmapped_observations,
             }
         except ConnectorPollError as exc:
             errors.append(str(exc))
@@ -161,4 +182,5 @@ def run_connector_poll_with_retries(
         "observations_applied": observations_applied,
         "observations_reviewed": observations_reviewed,
         "errors": errors,
+        "unmapped_observations": unmapped_observations,
     }

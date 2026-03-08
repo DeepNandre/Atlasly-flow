@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import os
 import pathlib
 import sys
+import tempfile
 import unittest
 import uuid
 
@@ -45,6 +46,8 @@ class ControlTowerRuntimeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.state.stage2_repo.close()
         self.state.stage3_store.repository.close()
+        if self.state.runtime_store is not None:
+            self.state.runtime_store.close()
 
     def test_control_tower_payload_shapes(self):
         portfolio = self.state.portfolio()
@@ -217,6 +220,62 @@ class ControlTowerRuntimeTests(unittest.TestCase):
         finally:
             secondary.stage2_repo.close()
             secondary.stage3_store.repository.close()
+            if secondary.runtime_store is not None:
+                secondary.runtime_store.close()
+
+    def test_mvp_runtime_persists_feedback_and_ids_across_restart(self):
+        previous = {
+            "ATLASLY_DEPLOYMENT_TIER": os.environ.get("ATLASLY_DEPLOYMENT_TIER"),
+            "ATLASLY_STAGE05_RUNTIME_BACKEND": os.environ.get("ATLASLY_STAGE05_RUNTIME_BACKEND"),
+            "ATLASLY_STAGE05_PERSISTENCE_READY": os.environ.get("ATLASLY_STAGE05_PERSISTENCE_READY"),
+            "ATLASLY_DATA_DIR": os.environ.get("ATLASLY_DATA_DIR"),
+        }
+        with tempfile.TemporaryDirectory(prefix="atlasly-runtime-test-") as tmpdir:
+            os.environ["ATLASLY_DEPLOYMENT_TIER"] = "mvp"
+            os.environ["ATLASLY_STAGE05_RUNTIME_BACKEND"] = "sqlite"
+            os.environ["ATLASLY_STAGE05_PERSISTENCE_READY"] = "true"
+            os.environ["ATLASLY_DATA_DIR"] = tmpdir
+
+            first = DemoAppState()
+            try:
+                first.bootstrap()
+                owner = first.require_session(
+                    token=first.session_token_by_role["owner"],
+                    allowed_roles={"owner"},
+                )
+                first.record_feedback(
+                    message="persist me",
+                    rating=5,
+                    category="pilot",
+                    context={"mode": "mvp"},
+                    session=owner,
+                )
+                first.persist_if_configured()
+                first_org_id = first.ids.organization_id if first.ids else None
+            finally:
+                first.stage2_repo.close()
+                first.stage3_store.repository.close()
+                if first.runtime_store is not None:
+                    first.runtime_store.close()
+
+            second = DemoAppState()
+            try:
+                self.assertFalse(second.demo_routes_enabled)
+                self.assertIsNotNone(second.ids)
+                self.assertEqual(second.ids.organization_id if second.ids else None, first_org_id)
+                self.assertEqual(len(second.feedback_entries), 1)
+                self.assertTrue(second.summary()["runtime"]["persistence_ready"])
+            finally:
+                second.stage2_repo.close()
+                second.stage3_store.repository.close()
+                if second.runtime_store is not None:
+                    second.runtime_store.close()
+
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     def test_permit_and_finance_ops_reflect_runtime_activity(self):
         assert self.state.ids is not None

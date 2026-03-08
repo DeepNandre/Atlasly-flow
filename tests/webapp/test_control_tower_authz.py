@@ -21,6 +21,8 @@ class ControlTowerAuthzTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.state.stage2_repo.close()
         self.state.stage3_store.repository.close()
+        if self.state.runtime_store is not None:
+            self.state.runtime_store.close()
 
     def _token_for_role(self, role: str) -> str:
         sessions = self.bootstrap_payload.get("sessions", [])
@@ -43,6 +45,12 @@ class ControlTowerAuthzTests(unittest.TestCase):
     def test_demo_reset_is_unprotected_route(self):
         allowed = self.state.allowed_roles_for_route(method="POST", path="/api/demo/reset")
         self.assertIsNone(allowed)
+
+    def test_demo_routes_are_blocked_in_mvp_tier(self):
+        self.state.deployment_tier = "mvp"
+        self.state.demo_routes_enabled = False
+        allowed = self.state.allowed_roles_for_route(method="POST", path="/api/demo/reset")
+        self.assertEqual(allowed, {"owner", "admin"})
 
     def test_role_escalation_blocked_on_enterprise_write(self):
         pm_token = self._token_for_role("pm")

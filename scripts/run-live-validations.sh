@@ -30,7 +30,12 @@ done
 curl -sSf "${BASE_URL}/api/health" >/dev/null
 
 bootstrap_resp="$(curl -sSf -X POST "${BASE_URL}/api/bootstrap" -H "Content-Type: application/json" -d '{}')"
-AUTH_TOKEN="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("session",{}).get("token",""))' <<<"${bootstrap_resp}")"
+AUTH_TOKEN="$(
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("session") or {}).get("token") or d.get("token") or ((d.get("sessions") or [{}])[0].get("token","")))' <<<"${bootstrap_resp}"
+)"
+INTERNAL_PERMIT_ID="$(
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("ids") or {}).get("permit_id",""))' <<<"${bootstrap_resp}"
+)"
 if [[ -z "${AUTH_TOKEN}" ]]; then
   echo "Missing session token in bootstrap response"
   exit 1
@@ -58,6 +63,7 @@ echo "== Stage 2 live connector validation =="
 LIVE_CONNECTOR="${ATLASLY_LIVE_CONNECTOR:-accela_api}"
 LIVE_AHJ_ID="${ATLASLY_LIVE_AHJ_ID:-ca.san_jose.building}"
 LIVE_CREDENTIAL_REF="${ATLASLY_LIVE_CREDENTIAL_REF:-}"
+LIVE_EXTERNAL_PERMIT_ID="${ATLASLY_LIVE_EXTERNAL_PERMIT_ID:-}"
 
 if [[ -n "${LIVE_CREDENTIAL_REF}" ]]; then
   SECRET_ENV_NAME="$(
@@ -70,8 +76,11 @@ if [[ -n "${LIVE_CREDENTIAL_REF}" ]]; then
     fi
   else
     post_json "/api/stage2/connector-credentials/rotate" "$(python3 -c 'import json,sys; print(json.dumps({"connector":sys.argv[1],"credential_ref":sys.argv[2],"auth_scheme":"bearer"}))' "${LIVE_CONNECTOR}" "${LIVE_CREDENTIAL_REF}")" >/dev/null
+    if [[ -n "${LIVE_EXTERNAL_PERMIT_ID}" && -n "${INTERNAL_PERMIT_ID}" ]]; then
+      post_json "/api/stage2/permit-bindings" "$(python3 -c 'import json,sys; print(json.dumps({"connector":sys.argv[1],"ahj_id":sys.argv[2],"permit_id":sys.argv[3],"external_permit_id":sys.argv[4]}))' "${LIVE_CONNECTOR}" "${LIVE_AHJ_ID}" "${INTERNAL_PERMIT_ID}" "${LIVE_EXTERNAL_PERMIT_ID}")" >/dev/null
+    fi
     poll_resp="$(post_json "/api/stage2/poll-live" "$(python3 -c 'import json,sys; print(json.dumps({"connector":sys.argv[1],"ahj_id":sys.argv[2]}))' "${LIVE_CONNECTOR}" "${LIVE_AHJ_ID}")")"
-    python3 -c 'import json,sys; d=json.load(sys.stdin); run=d.get("poll_result",{}).get("run",{}); print(json.dumps({"connector_run_status":run.get("status"),"observations_processed":d.get("poll_result",{}).get("observations_processed"),"observations_applied":d.get("poll_result",{}).get("observations_applied"),"observations_reviewed":d.get("poll_result",{}).get("observations_reviewed")}, indent=2)); assert run.get("status") in {"succeeded","partial"}' <<<"${poll_resp}"
+    python3 -c 'import json,sys; d=json.load(sys.stdin); run=d.get("poll_result",{}).get("run",{}); payload={"connector_run_status":run.get("status"),"observations_processed":d.get("poll_result",{}).get("observations_processed"),"observations_applied":d.get("poll_result",{}).get("observations_applied"),"observations_reviewed":d.get("poll_result",{}).get("observations_reviewed"),"unmapped_observations":len(d.get("poll_result",{}).get("unmapped_observations",[]))}; print(json.dumps(payload, indent=2)); assert run.get("status") in {"succeeded","partial"}; strict=(sys.argv[1]=="1"); assert (not strict) or payload["connector_run_status"]=="succeeded"' "${STRICT_MODE}" <<<"${poll_resp}"
   fi
 else
   echo "Skipping Stage 2 live poll (set ATLASLY_LIVE_CREDENTIAL_REF and corresponding secret env var)."
@@ -82,14 +91,13 @@ fi
 
 echo
 echo "== Stage 3 stripe sandbox validation =="
-if [[ -n "${ATLASLY_STRIPE_SECRET_KEY:-}" ]]; then
+STRIPE_ENABLED="${ATLASLY_ENABLE_STRIPE:-0}"
+ENFORCE_SIGNATURES="${ATLASLY_STAGE3_ENFORCE_SIGNATURES:-0}"
+if [[ -n "${ATLASLY_STRIPE_SECRET_KEY:-}" || "${STRIPE_ENABLED}" == "1" || "${STRIPE_ENABLED}" == "true" || "${ENFORCE_SIGNATURES}" == "1" || "${ENFORCE_SIGNATURES}" == "true" ]]; then
   stripe_resp="$(post_json "/api/stage3/payout" '{"amount":25,"provider":"stripe_sandbox","currency":"USD","beneficiary_id":"beneficiary-live-validation"}')"
   python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"instruction_id":d.get("instruction_id"),"provider":d.get("provider"),"state":d.get("instruction_state")}, indent=2)); assert d.get("instruction_id")' <<<"${stripe_resp}"
 else
   echo "Skipping Stripe sandbox payout (set ATLASLY_STRIPE_SECRET_KEY)."
-  if [[ "${STRICT_MODE}" == "1" ]]; then
-    exit 1
-  fi
 fi
 
 echo

@@ -21,6 +21,11 @@ export interface SessionRecord {
   expires_at?: string
 }
 
+export interface RuntimeInfo {
+  deployment_tier?: string
+  demo_routes_enabled?: boolean
+}
+
 function getToken(): string | null {
   return localStorage.getItem(STORED_TOKEN_KEY)
 }
@@ -81,22 +86,22 @@ export const api = {
     }),
 }
 
-export async function bootstrap(): Promise<{ token: string; sessions: SessionRecord[] }> {
+export async function bootstrap(): Promise<{ token: string; sessions: SessionRecord[]; runtime?: RuntimeInfo }> {
   const data = await api.post<{ session?: SessionRecord; sessions?: SessionRecord[]; token?: string }>('/api/bootstrap', {
     org_name: 'My Organization',
     user_name: 'owner',
     email: 'owner@atlasly.app',
-  })
+  }) as { session?: SessionRecord; sessions?: SessionRecord[]; token?: string; runtime?: RuntimeInfo }
   const token = data?.session?.token ?? (data as Record<string, string>)?.token ?? ''
   if (token) setToken(token)
-  return { token, sessions: data.sessions ?? [] }
+  return { token, sessions: data.sessions ?? [], runtime: data.runtime }
 }
 
 export function getStoredToken(): string | null {
   return getToken()
 }
 
-export async function fetchSessions(): Promise<SessionRecord[]> {
-  const data = await api.get<{ sessions?: SessionRecord[] }>('/api/sessions')
-  return data.sessions ?? []
+export async function fetchSessions(): Promise<{ sessions: SessionRecord[]; runtime?: RuntimeInfo }> {
+  const data = await api.get<{ sessions?: SessionRecord[]; runtime?: RuntimeInfo }>('/api/sessions')
+  return { sessions: data.sessions ?? [], runtime: data.runtime }
 }

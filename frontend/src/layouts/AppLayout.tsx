@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, CheckSquare, Building2, DollarSign,
   Settings, Plug, ChevronDown, Menu, X, HelpCircle,
@@ -52,13 +52,12 @@ function NavItem({ to, label, icon: Icon, exact }: { to: string; label: string; 
 }
 
 export function AppLayout() {
-  const { role, switchRole, ready } = useAuth()
+  const { role, switchRole, ready, runtime } = useAuth()
   const perms = usePermissions(role)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [roleSwitching, setRoleSwitching] = useState(false)
-  const location = useLocation()
-  const isDemo = new URLSearchParams(location.search).has('demo')
+  const isDemo = Boolean(runtime?.demo_routes_enabled)
 
   if (!ready) {
     return (

@@ -38,6 +38,7 @@ class ControlTowerContractTests(unittest.TestCase):
             "/api/stage1a/review:",
             "/api/stage1b/assign:",
             "/api/stage2/poll-live:",
+            "/api/stage2/permit-bindings:",
             "permit_status_breakdown",
             "transition_review_queue",
             "state_breakdown",
@@ -45,6 +46,7 @@ class ControlTowerContractTests(unittest.TestCase):
             "dead_letter_total",
             "integration_readiness",
             "launch_readiness",
+            "demo_routes_enabled",
             "transition_reviews",
             "payout_reconciliation",
         ]:

@@ -72,23 +72,39 @@ class Stage3RuntimeStore:
     milestones_by_id: dict[str, dict]
 
     @classmethod
-    def bootstrap(cls) -> "Stage3RuntimeStore":
-        repo = Stage3SQLiteRepository()
-        feature_store = FeatureStore(FeatureStoreData.empty())
-        registry = ModelRegistry(ModelRegistryStore.empty())
-        model = registry.register_candidate(
-            metrics={
-                "w_ahj_cycle_variance": 0.45,
-                "w_submission_incompleteness": 0.35,
-                "w_permit_complexity": 0.20,
-                "confidence_score": 0.82,
-            },
-            feature_schema_hash="stage3-feature-schema-v1",
+    def bootstrap(
+        cls,
+        *,
+        db_path: str = ":memory:",
+        feature_store_data: FeatureStoreData | None = None,
+        model_registry_store: ModelRegistryStore | None = None,
+        projects_by_id: dict[str, dict] | None = None,
+        milestones_by_id: dict[str, dict] | None = None,
+    ) -> "Stage3RuntimeStore":
+        repo = Stage3SQLiteRepository(db_path=db_path)
+        feature_store = FeatureStore(feature_store_data or FeatureStoreData.empty())
+        registry_store = model_registry_store or ModelRegistryStore.empty()
+        registry = ModelRegistry(registry_store)
+        if registry_store.deployed_version is None:
+            model = registry.register_candidate(
+                metrics={
+                    "w_ahj_cycle_variance": 0.45,
+                    "w_submission_incompleteness": 0.35,
+                    "w_permit_complexity": 0.20,
+                    "confidence_score": 0.82,
+                },
+                feature_schema_hash="stage3-feature-schema-v1",
+            )
+            registry.set_state(model_version=model["model_version"], new_state="validated")
+            registry.set_state(model_version=model["model_version"], new_state="approved")
+            registry.deploy(model_version=model["model_version"])
+        return cls(
+            repo,
+            feature_store,
+            registry,
+            dict(projects_by_id or {}),
+            dict(milestones_by_id or {}),
         )
-        registry.set_state(model_version=model["model_version"], new_state="validated")
-        registry.set_state(model_version=model["model_version"], new_state="approved")
-        registry.deploy(model_version=model["model_version"])
-        return cls(repo, feature_store, registry, {}, {})
 
 
 class Stage3RuntimeAPI:

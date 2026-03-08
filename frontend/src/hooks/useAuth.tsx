@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { bootstrap, fetchSessions, getStoredToken, setToken, type SessionRecord } from '@/lib/api'
+import { bootstrap, fetchSessions, getStoredToken, setToken, type RuntimeInfo, type SessionRecord } from '@/lib/api'
 import type { Role } from '@/lib/constants'
 
 interface AuthState {
@@ -9,6 +9,7 @@ interface AuthState {
   role: Role
   ready: boolean
   sessions: SessionRecord[]
+  runtime: RuntimeInfo | null
 }
 
 interface AuthContextValue extends AuthState {
@@ -33,11 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: normalizeRole(localStorage.getItem(STORED_ROLE_KEY)),
     ready: false,
     sessions: [],
+    runtime: null,
   })
 
   const refreshSessions = useCallback(async () => {
-    const sessions = await fetchSessions()
-    setState((prev) => ({ ...prev, sessions }))
+    const payload = await fetchSessions()
+    setState((prev) => ({ ...prev, sessions: payload.sessions, runtime: payload.runtime ?? prev.runtime }))
   }, [])
 
   useEffect(() => {
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: matching?.role ? normalizeRole(matching.role) : storedRole,
           ready: true,
           sessions: boot.sessions,
+          runtime: boot.runtime ?? null,
         })
       } catch {
         if (!cancelled) {
@@ -68,7 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const switchRole = useCallback(async (role: Role) => {
-    const sessions = state.sessions.length > 0 ? state.sessions : await fetchSessions()
+    const payload = state.sessions.length > 0 ? { sessions: state.sessions, runtime: state.runtime ?? undefined } : await fetchSessions()
+    const sessions = payload.sessions
     const nextSession = sessions.find((session) => session.role === role)
     if (!nextSession) {
       throw new Error(`No active session for role ${role}`)
@@ -81,8 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token: nextSession.token,
       role,
       sessions,
+      runtime: payload.runtime ?? prev.runtime,
     }))
-  }, [queryClient, state.sessions])
+  }, [queryClient, state.runtime, state.sessions])
 
   const value = useMemo<AuthContextValue>(() => ({
     ...state,

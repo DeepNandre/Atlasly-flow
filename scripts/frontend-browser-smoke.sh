@@ -37,7 +37,7 @@ for route in / /letters /tasks /permits /integrations /settings; do
 done
 
 BOOTSTRAP_PAYLOAD="$(curl -fsS -X POST "http://$HOST:$PORT/api/bootstrap" -H 'Content-Type: application/json' -d '{}')"
-TOKEN="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("session",{}).get("token", ""))' "$BOOTSTRAP_PAYLOAD")"
+TOKEN="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print((d.get("session") or {}).get("token") or ((d.get("sessions") or [{}])[0].get("token","")))' "$BOOTSTRAP_PAYLOAD")"
 [[ -n "$TOKEN" ]]
 
 curl -fsS "http://$HOST:$PORT/api/portfolio" -H "Authorization: Bearer $TOKEN" >/dev/null
