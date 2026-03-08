@@ -107,12 +107,15 @@ export default function IntegrationsPage() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(Object.entries(slo.data as Record<string, unknown>)).slice(0, 8).map(([k, v]) => (
-                <div key={k}>
-                  <p className="text-xs text-atlasly-muted capitalize">{k.replace(/_/g, ' ')}</p>
-                  <p className="text-sm font-semibold text-atlasly-ink mt-0.5">{String(v)}</p>
-                </div>
-              ))}
+              {(Object.entries(slo.data as Record<string, unknown>))
+                .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+                .slice(0, 8)
+                .map(([k, v]) => (
+                  <div key={k}>
+                    <p className="text-xs text-atlasly-muted capitalize">{k.replace(/_/g, ' ')}</p>
+                    <p className="text-sm font-semibold text-atlasly-ink mt-0.5">{String(v)}</p>
+                  </div>
+                ))}
             </div>
           </CardContent>
         </Card>

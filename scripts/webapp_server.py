@@ -2059,6 +2059,43 @@ class WebHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"events": events})
                 return
 
+            if path == "/api/stage1a/letters":
+                letters = sorted(
+                    STATE.stage1a_store.letters_by_id.values(),
+                    key=lambda l: str(l.get("created_at") or ""),
+                    reverse=True,
+                )
+                self._json(HTTPStatus.OK, {"letters": list(letters), "count": len(letters)})
+                return
+
+            if path == "/api/enterprise/webhooks":
+                if not STATE.ids:
+                    self._json(HTTPStatus.OK, {"webhooks": [], "count": 0})
+                    return
+                org_id = STATE.ids.organization_id
+                webhooks = sorted(
+                    [row for row in STATE.stage05_store.webhook_subscriptions_by_id.values()
+                     if row.get("organization_id") == org_id],
+                    key=lambda w: str(w.get("created_at") or ""),
+                    reverse=True,
+                )
+                self._json(HTTPStatus.OK, {"webhooks": webhooks, "count": len(webhooks)})
+                return
+
+            if path == "/api/enterprise/api-keys":
+                if not STATE.ids:
+                    self._json(HTTPStatus.OK, {"keys": [], "count": 0})
+                    return
+                org_id = STATE.ids.organization_id
+                keys = sorted(
+                    [row for row in STATE.stage05_store.api_credentials_by_id.values()
+                     if row.get("organization_id") == org_id],
+                    key=lambda k: str(k.get("created_at") or ""),
+                    reverse=True,
+                )
+                self._json(HTTPStatus.OK, {"keys": keys, "count": len(keys)})
+                return
+
             self._serve_static(path)
         except Exception as exc:  # noqa: BLE001
             if isinstance(exc, SessionAuthError):
@@ -3212,9 +3249,16 @@ class WebHandler(BaseHTTPRequestHandler):
             rel = pathlib.Path(safe_path.lstrip("/"))
 
         target = (STATIC_DIR / rel).resolve()
-        if not str(target).startswith(str(STATIC_DIR.resolve())) or not target.exists() or target.is_dir():
+        # Security check: must be inside STATIC_DIR
+        if not str(target).startswith(str(STATIC_DIR.resolve())):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
+        # SPA fallback: serve index.html for any path that doesn't exist as a file
+        if not target.exists() or target.is_dir():
+            target = (STATIC_DIR / "index.html").resolve()
+            if not target.exists():
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
 
         if target.suffix == ".html":
             ctype = "text/html; charset=utf-8"
