@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timezone
+import os
 import pathlib
 import sys
 import unittest
@@ -89,6 +90,22 @@ class ControlTowerRuntimeTests(unittest.TestCase):
         self.assertIn("stage2", readiness)
         self.assertIn("stage3", readiness)
         self.assertFalse(readiness["overall_ready"])
+
+    def test_integration_readiness_does_not_block_on_stripe_when_disabled(self):
+        previous_key = os.environ.pop("ATLASLY_STRIPE_SECRET_KEY", None)
+        previous_enabled = os.environ.pop("ATLASLY_ENABLE_STRIPE", None)
+        previous_signatures = os.environ.pop("ATLASLY_STAGE3_ENFORCE_SIGNATURES", None)
+        try:
+            readiness = self.state.integration_readiness()
+            self.assertFalse(readiness["stage3"]["enabled"])
+            self.assertNotIn("missing_env:ATLASLY_STRIPE_SECRET_KEY", readiness["launch_blockers"])
+        finally:
+            if previous_key is not None:
+                os.environ["ATLASLY_STRIPE_SECRET_KEY"] = previous_key
+            if previous_enabled is not None:
+                os.environ["ATLASLY_ENABLE_STRIPE"] = previous_enabled
+            if previous_signatures is not None:
+                os.environ["ATLASLY_STAGE3_ENFORCE_SIGNATURES"] = previous_signatures
 
     def test_launch_readiness_includes_checklist_and_blockers(self):
         readiness = self.state.launch_readiness()

@@ -1,8 +1,17 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError || error instanceof Error) {
+    return error.message
+  }
+  return 'Unexpected error'
+}
+
+function toastError(prefix: string, error: unknown) {
+  toast.error(`${prefix}: ${errorMessage(error)}`)
+}
 
 export function usePortfolio() {
   return useQuery({
@@ -28,8 +37,6 @@ export function useSummary() {
   })
 }
 
-// ─── Comment Letters ─────────────────────────────────────────────────────────
-
 export function useCommentLetters() {
   return useQuery({
     queryKey: ['letters'],
@@ -38,11 +45,19 @@ export function useCommentLetters() {
   })
 }
 
-export function useQualityReport(letterId?: string) {
+export function useLetterExtractions(letterId?: string) {
   return useQuery({
-    queryKey: ['quality-report', letterId],
-    queryFn: () => api.get(`/api/stage1a/quality-report${letterId ? `?letter_id=${letterId}` : ''}`),
-    enabled: !!letterId,
+    queryKey: ['letter-extractions', letterId],
+    queryFn: () => api.get(`/api/stage1a/extractions?letter_id=${letterId}`),
+    enabled: Boolean(letterId),
+    retry: 1,
+  })
+}
+
+export function useQualityReport() {
+  return useQuery({
+    queryKey: ['quality-report'],
+    queryFn: () => api.get('/api/stage1a/quality-report'),
     retry: 1,
   })
 }
@@ -50,39 +65,40 @@ export function useQualityReport(letterId?: string) {
 export function useUploadLetter() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { filename: string; content_b64: string }) =>
-      api.post('/api/stage1a/upload', body),
+    mutationFn: (body: { filename: string; mime_type: string; document_base64: string }) =>
+      api.post('/api/stage1a/upload', { ...body, auto_process: true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['letters'] })
-      toast.success('Comment letter uploaded — extraction started')
+      toast.success('Comment letter uploaded')
     },
-    onError: (e: Error) => toast.error(`Upload failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Upload failed', error),
   })
 }
 
 export function useParseComments() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { raw_text?: string; filename?: string }) =>
+    mutationFn: (body: { text?: string; filename?: string; mime_type?: string; document_base64?: string }) =>
       api.post('/api/stage1a/parse', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['letters'] })
       toast.success('Comment letter parsed successfully')
     },
-    onError: (e: Error) => toast.error(`Parse failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Parse failed', error),
   })
 }
 
 export function useReviewExtraction() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { letter_id: string; extraction_id: string; action: string; note?: string }) =>
+    mutationFn: (body: { letter_id: string; extraction_id: string; action: 'accept' | 'reject' }) =>
       api.post('/api/stage1a/review', body),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['letters'] })
+      qc.invalidateQueries({ queryKey: ['letter-extractions', variables.letter_id] })
       toast.success('Extraction reviewed')
     },
-    onError: (e: Error) => toast.error(`Review failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Review failed', error),
   })
 }
 
@@ -94,13 +110,11 @@ export function useApproveAndCreateTasks() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['letters'] })
       qc.invalidateQueries({ queryKey: ['tasks'] })
-      toast.success('Letter approved — tasks created and routed')
+      toast.success('Letter approved and tasks created')
     },
-    onError: (e: Error) => toast.error(`Approval failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Approval failed', error),
   })
 }
-
-// ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export function useTasks() {
   return useQuery({
@@ -121,21 +135,40 @@ export function useRoutingAudit() {
 export function useAssignTask() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { task_id: string; assignee_id: string }) =>
-      api.post('/api/stage1b/assign', body),
+    mutationFn: (body: { task_id: string; assignee_id: string }) => api.post('/api/stage1b/assign', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] })
-      toast.success('Task assigned')
+      qc.invalidateQueries({ queryKey: ['routing-audit'] })
+      toast.success('Task assignment updated')
     },
-    onError: (e: Error) => toast.error(`Assignment failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Assignment failed', error),
   })
 }
 
-// ─── Permits ──────────────────────────────────────────────────────────────────
+export function useEscalationTick() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body?: { user_mode?: 'immediate' | 'digest' }) => api.post('/api/stage1b/escalation-tick', body ?? {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['routing-audit'] })
+      toast.success('Escalation worker run complete')
+    },
+    onError: (error: unknown) => toastError('Escalation run failed', error),
+  })
+}
 
 export function usePermits() {
   return useQuery({
-    queryKey: ['permits'],
+    queryKey: ['portfolio'],
+    queryFn: () => api.get('/api/portfolio'),
+    retry: 1,
+  })
+}
+
+export function usePermitOps() {
+  return useQuery({
+    queryKey: ['permit-ops'],
     queryFn: () => api.get('/api/permit-ops'),
     retry: 1,
   })
@@ -145,7 +178,7 @@ export function usePermitTimeline(permitId: string) {
   return useQuery({
     queryKey: ['permit-timeline', permitId],
     queryFn: () => api.get(`/api/stage2/timeline?permit_id=${permitId}`),
-    enabled: !!permitId,
+    enabled: Boolean(permitId),
     retry: 1,
   })
 }
@@ -153,51 +186,63 @@ export function usePermitTimeline(permitId: string) {
 export function useIntakeComplete() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/stage2/intake-complete', body),
+    mutationFn: (body: Record<string, unknown>) => api.post('/api/stage2/intake-complete', body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['permits'] })
+      qc.invalidateQueries({ queryKey: ['portfolio'] })
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
       toast.success('Permit intake submitted')
     },
-    onError: (e: Error) => toast.error(`Intake failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Intake failed', error),
   })
 }
 
 export function useResolveAhj() {
   return useMutation({
-    mutationFn: (body: { address: string }) =>
+    mutationFn: (body: { address: { line1: string; city: string; state: string; postal_code: string } }) =>
       api.post('/api/stage2/resolve-ahj', body),
-    onError: (e: Error) => toast.error(`AHJ lookup failed: ${e.message}`),
+    onError: (error: unknown) => toastError('AHJ lookup failed', error),
   })
 }
 
 export function usePollPermitStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { permit_id: string }) =>
-      api.post('/api/stage2/poll-status', body),
+    mutationFn: (body?: { raw_status?: string }) => api.post('/api/stage2/poll-status', body ?? {}),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['permits'] })
-      toast.success('Status synced with city')
+      qc.invalidateQueries({ queryKey: ['portfolio'] })
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
+      qc.invalidateQueries({ queryKey: ['permit-timeline'] })
+      toast.success('Status sync complete')
     },
-    onError: (e: Error) => toast.error(`Sync failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Sync failed', error),
+  })
+}
+
+export function useResolveTransition() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { review_id: string; resolution_state: 'open' | 'resolved' | 'dismissed' }) =>
+      api.post('/api/permit-ops/resolve-transition', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
+      toast.success('Transition review updated')
+    },
+    onError: (error: unknown) => toastError('Transition update failed', error),
   })
 }
 
 export function useResolveDrift() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { permit_id: string; resolution: string }) =>
+    mutationFn: (body: { alert_id: string; status: 'open' | 'resolved' | 'dismissed' }) =>
       api.post('/api/permit-ops/resolve-drift', body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['permits'] })
-      toast.success('Drift resolved')
+      qc.invalidateQueries({ queryKey: ['permit-ops'] })
+      toast.success('Drift alert updated')
     },
-    onError: (e: Error) => toast.error(`Resolution failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Drift resolution failed', error),
   })
 }
-
-// ─── Payouts ──────────────────────────────────────────────────────────────────
 
 export function useFinanceOps() {
   return useQuery({
@@ -209,35 +254,34 @@ export function useFinanceOps() {
 
 export function usePayoutPreflight() {
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/stage3/preflight', body),
-    onError: (e: Error) => toast.error(`Preflight failed: ${e.message}`),
+    mutationFn: () => api.post('/api/stage3/preflight', {}),
+    onError: (error: unknown) => toastError('Preflight failed', error),
   })
 }
 
 export function useCreatePayout() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: { amount: number; beneficiary_id: string; provider?: string }) =>
       api.post('/api/stage3/payout', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['finance-ops'] })
+      qc.invalidateQueries({ queryKey: ['payout-outbox'] })
       toast.success('Payout instruction created')
     },
-    onError: (e: Error) => toast.error(`Payout failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Payout failed', error),
   })
 }
 
 export function useReconcile() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/stage3/reconcile', body),
+    mutationFn: () => api.post('/api/stage3/reconcile', {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['finance-ops'] })
       toast.success('Reconciliation complete')
     },
-    onError: (e: Error) => toast.error(`Reconciliation failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Reconciliation failed', error),
   })
 }
 
@@ -252,21 +296,28 @@ export function usePayoutOutbox() {
 export function usePublishOutbox() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => api.post('/api/stage3/publish-outbox'),
+    mutationFn: () => api.post('/api/stage3/publish-outbox', {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payout-outbox'] })
+      qc.invalidateQueries({ queryKey: ['finance-ops'] })
       toast.success('Outbox published')
     },
-    onError: (e: Error) => toast.error(`Publish failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Publish failed', error),
   })
 }
-
-// ─── Integrations ─────────────────────────────────────────────────────────────
 
 export function useIntegrationsReadiness() {
   return useQuery({
     queryKey: ['integrations-readiness'],
     queryFn: () => api.get('/api/enterprise/integrations-readiness'),
+    retry: 1,
+  })
+}
+
+export function useLaunchReadiness() {
+  return useQuery({
+    queryKey: ['launch-readiness'],
+    queryFn: () => api.get('/api/enterprise/launch-readiness'),
     retry: 1,
   })
 }
@@ -282,30 +333,37 @@ export function useSlo() {
 export function useConnectorSync() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/enterprise/connector-sync', body),
+    mutationFn: (body: { connector_name: string; run_mode?: string }) => api.post('/api/enterprise/connector-sync', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrations-readiness'] })
       toast.success('Connector sync started')
     },
-    onError: (e: Error) => toast.error(`Sync failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Sync failed', error),
   })
 }
 
 export function useRotateCredentials() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { connector: string; credential: string }) =>
-      api.post('/api/stage2/connector-credentials/rotate', body),
+    mutationFn: (body: { connector: string; credential_ref: string; auth_scheme?: string }) =>
+      api.post('/api/stage2/connector-credentials/rotate', { ...body, auth_scheme: body.auth_scheme ?? 'bearer' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrations-readiness'] })
-      toast.success('Credentials rotated')
+      qc.invalidateQueries({ queryKey: ['connector-credentials'] })
+      toast.success('Credential reference rotated')
     },
-    onError: (e: Error) => toast.error(`Rotation failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Rotation failed', error),
   })
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+export function useConnectorCredentials(connector?: string) {
+  const suffix = connector ? `?connector=${connector}` : ''
+  return useQuery({
+    queryKey: ['connector-credentials', connector],
+    queryFn: () => api.get(`/api/stage2/connector-credentials${suffix}`),
+    retry: 1,
+  })
+}
 
 export function useWebhooks() {
   return useQuery({
@@ -318,13 +376,12 @@ export function useWebhooks() {
 export function useCreateWebhook() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/enterprise/webhooks', body),
+    mutationFn: (body: { target_url: string }) => api.post('/api/enterprise/webhooks', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['webhooks'] })
       toast.success('Webhook created')
     },
-    onError: (e: Error) => toast.error(`Webhook creation failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Webhook creation failed', error),
   })
 }
 
@@ -339,30 +396,41 @@ export function useApiKeys() {
 export function useCreateApiKey() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/enterprise/api-keys', body),
+    mutationFn: (body: { name: string }) =>
+      api.post('/api/enterprise/api-keys', {
+        name: body.name,
+        scopes: ['dashboard:read', 'webhooks:read'],
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['api-keys'] })
       toast.success('API key created')
     },
-    onError: (e: Error) => toast.error(`Key creation failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Key creation failed', error),
   })
 }
 
 export function useAuditExport() {
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      api.post('/api/enterprise/audit-export', body),
-    onSuccess: () => toast.success('Audit export started — check your email'),
-    onError: (e: Error) => toast.error(`Export failed: ${e.message}`),
+    mutationFn: async () => {
+      const requested = await api.post<{ export_id: string }>('/api/enterprise/audit-exports/request', {})
+      await api.post('/api/enterprise/audit-exports/run', { export_id: requested.export_id })
+      return api.post('/api/enterprise/audit-exports/complete', {
+        export_id: requested.export_id,
+        checksum: 'sha256:atlasly-control-tower',
+        storage_uri: `local://audit-exports/${requested.export_id}.json`,
+        access_log_ref: `audit-log-${requested.export_id}`,
+      })
+    },
+    onSuccess: () => toast.success('Audit export completed'),
+    onError: (error: unknown) => toastError('Audit export failed', error),
   })
 }
 
 export function useDashboardSnapshot() {
   return useMutation({
-    mutationFn: () => api.post('/api/enterprise/dashboard-snapshot'),
+    mutationFn: () => api.post('/api/enterprise/dashboard-snapshot', {}),
     onSuccess: () => toast.success('Snapshot created'),
-    onError: (e: Error) => toast.error(`Snapshot failed: ${e.message}`),
+    onError: (error: unknown) => toastError('Snapshot failed', error),
   })
 }
 

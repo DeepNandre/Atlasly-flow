@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
-import { Upload, FileText } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { FileText, Upload } from 'lucide-react'
+import { useParseComments, useUploadLetter } from '@/hooks/useApi'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { useUploadLetter, useParseComments } from '@/hooks/useApi'
-import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 export function LetterUpload({ onSuccess }: { onSuccess?: () => void }) {
   const [dragging, setDragging] = useState(false)
@@ -15,30 +15,30 @@ export function LetterUpload({ onSuccess }: { onSuccess?: () => void }) {
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader()
     reader.onload = () => {
-      const b64 = (reader.result as string).split(',')[1]
+      const documentBase64 = String(reader.result ?? '').split(',')[1] ?? ''
       upload.mutate(
-        { filename: file.name, content_b64: b64 },
-        { onSuccess: onSuccess },
+        { filename: file.name, mime_type: file.type || 'application/pdf', document_base64: documentBase64 },
+        { onSuccess },
       )
     }
     reader.readAsDataURL(file)
-  }, [upload, onSuccess])
+  }, [onSuccess, upload])
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
+  const onDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
     setDragging(false)
-    const file = e.dataTransfer.files[0]
+    const file = event.dataTransfer.files[0]
     if (file) handleFile(file)
   }, [handleFile])
 
-  const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const onFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
     if (file) handleFile(file)
   }
 
   const handleParseText = () => {
     if (!pasteText.trim()) return
-    parse.mutate({ raw_text: pasteText }, { onSuccess: () => { setPasteText(''); onSuccess?.() } })
+    parse.mutate({ text: pasteText }, { onSuccess: () => { setPasteText(''); onSuccess?.() } })
   }
 
   return (
@@ -54,7 +54,7 @@ export function LetterUpload({ onSuccess }: { onSuccess?: () => void }) {
             'mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 cursor-pointer transition-colors',
             dragging ? 'border-atlasly-teal bg-atlasly-teal/5' : 'border-atlasly-line hover:border-atlasly-teal/50 hover:bg-atlasly-bg',
           )}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
@@ -62,9 +62,7 @@ export function LetterUpload({ onSuccess }: { onSuccess?: () => void }) {
           <Upload className="h-8 w-8 text-atlasly-muted mb-3" />
           <p className="text-sm font-medium text-atlasly-ink">Drop your comment letter here</p>
           <p className="text-xs text-atlasly-muted mt-1">or click to browse — PDF or TXT</p>
-          {upload.isPending && (
-            <p className="text-xs text-atlasly-teal mt-3 animate-pulse">Uploading…</p>
-          )}
+          {upload.isPending ? <p className="text-xs text-atlasly-teal mt-3 animate-pulse">Uploading…</p> : null}
         </label>
       </TabsContent>
 
@@ -72,13 +70,10 @@ export function LetterUpload({ onSuccess }: { onSuccess?: () => void }) {
         <Textarea
           placeholder="Paste the raw text of the comment letter here…"
           value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
+          onChange={(event) => setPasteText(event.target.value)}
           className="min-h-[160px]"
         />
-        <Button
-          onClick={handleParseText}
-          disabled={!pasteText.trim() || parse.isPending}
-        >
+        <Button onClick={handleParseText} disabled={!pasteText.trim() || parse.isPending}>
           <FileText className="h-4 w-4 mr-1" />
           {parse.isPending ? 'Processing…' : 'Extract Comments'}
         </Button>

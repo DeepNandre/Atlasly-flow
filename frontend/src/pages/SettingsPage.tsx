@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { useWebhooks, useCreateWebhook, useApiKeys, useCreateApiKey, useAuditExport, useTaskTemplates } from '@/hooks/useApi'
+import { useApiKeys, useAuditExport, useCreateApiKey, useCreateWebhook, useTaskTemplates, useWebhooks } from '@/hooks/useApi'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { SkeletonTable } from '@/components/shared/Skeleton'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
 
 export default function SettingsPage() {
@@ -21,20 +21,18 @@ export default function SettingsPage() {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [keyName, setKeyName] = useState('')
 
-  if (webhooks.error) return <ErrorState message="Could not load settings" onRetry={webhooks.refetch} />
+  const error = webhooks.error ?? apiKeys.error ?? taskTemplates.error
+  if (error) return <ErrorState message="Could not load settings" onRetry={() => { webhooks.refetch(); apiKeys.refetch(); taskTemplates.refetch() }} />
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const whs: any[] = (webhooks.data as any)?.webhooks ?? []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const keys: any[] = (apiKeys.data as any)?.keys ?? []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const templates: any[] = (taskTemplates.data as any)?.templates ?? []
+  const webhookRows = ((webhooks.data as { webhooks?: Array<Record<string, unknown>> } | undefined)?.webhooks ?? [])
+  const keyRows = ((apiKeys.data as { keys?: Array<Record<string, unknown>> } | undefined)?.keys ?? [])
+  const templateRows = ((taskTemplates.data as { templates?: Array<Record<string, unknown>> } | undefined)?.templates ?? [])
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-atlasly-ink">Settings</h1>
-        <p className="text-sm text-atlasly-muted mt-0.5">Manage webhooks, API keys, and exports</p>
+        <p className="text-sm text-atlasly-muted mt-0.5">Manage enterprise webhooks, API keys, templates, and audit exports</p>
       </div>
 
       <Tabs defaultValue="webhooks">
@@ -45,7 +43,6 @@ export default function SettingsPage() {
           <TabsTrigger value="audit">Audit Exports</TabsTrigger>
         </TabsList>
 
-        {/* Webhooks */}
         <TabsContent value="webhooks" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
@@ -55,12 +52,13 @@ export default function SettingsPage() {
               <div className="flex gap-3">
                 <Input
                   value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  onChange={(event) => setWebhookUrl(event.target.value)}
                   placeholder="https://your-server.com/webhook"
                   className="flex-1"
+                  autoComplete="url"
                 />
                 <Button
-                  onClick={() => createWebhook.mutate({ url: webhookUrl }, { onSuccess: () => { setWebhookUrl(''); webhooks.refetch() } })}
+                  onClick={() => createWebhook.mutate({ target_url: webhookUrl }, { onSuccess: () => { setWebhookUrl(''); webhooks.refetch() } })}
                   disabled={!webhookUrl || createWebhook.isPending}
                 >
                   {createWebhook.isPending ? 'Adding…' : 'Add'}
@@ -68,15 +66,15 @@ export default function SettingsPage() {
               </div>
               {webhooks.isLoading ? <SkeletonTable rows={3} /> : (
                 <div className="space-y-2">
-                  {whs.length === 0 && <p className="text-sm text-atlasly-muted">No webhooks configured</p>}
-                  {whs.map((w) => (
-                    <div key={w.webhook_id ?? w.id} className="flex items-center gap-3 rounded-md border border-atlasly-line px-4 py-3">
+                  {webhookRows.length === 0 ? <p className="text-sm text-atlasly-muted">No webhooks configured</p> : null}
+                  {webhookRows.map((webhook) => (
+                    <div key={String(webhook.id ?? webhook.webhook_id)} className="flex items-center gap-3 rounded-md border border-atlasly-line px-4 py-3">
                       <div className="flex-1">
-                        <p className="text-sm font-mono text-atlasly-ink truncate">{w.url}</p>
-                        <p className="text-xs text-atlasly-muted mt-0.5">{formatDate(w.created_at)}</p>
+                        <p className="text-sm font-mono text-atlasly-ink truncate">{String(webhook.target_url ?? webhook.url ?? '—')}</p>
+                        <p className="text-xs text-atlasly-muted mt-0.5">{formatDate(String(webhook.created_at ?? ''))}</p>
                       </div>
-                      <Badge colorClass={w.active ? 'bg-atlasly-ok/20 text-atlasly-ok' : 'bg-gray-100 text-gray-500'}>
-                        {w.active ? 'Active' : 'Inactive'}
+                      <Badge colorClass={webhook.is_active ? 'bg-atlasly-ok/20 text-atlasly-ok' : 'bg-gray-100 text-gray-500'}>
+                        {webhook.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                   ))}
@@ -86,7 +84,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* API Keys */}
         <TabsContent value="api-keys" className="space-y-4 mt-4">
           <Card>
             <CardHeader><CardTitle>API Keys</CardTitle></CardHeader>
@@ -94,27 +91,24 @@ export default function SettingsPage() {
               <div className="flex gap-3">
                 <div className="flex-1 space-y-1">
                   <Label htmlFor="key-name">Key Name</Label>
-                  <Input id="key-name" value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. CI/CD pipeline" />
+                  <Input id="key-name" value={keyName} onChange={(event) => setKeyName(event.target.value)} placeholder="CI/CD pipeline" autoComplete="off" />
                 </div>
                 <div className="flex items-end">
-                  <Button
-                    onClick={() => createApiKey.mutate({ name: keyName }, { onSuccess: () => { setKeyName(''); apiKeys.refetch() } })}
-                    disabled={!keyName || createApiKey.isPending}
-                  >
+                  <Button onClick={() => createApiKey.mutate({ name: keyName }, { onSuccess: () => { setKeyName(''); apiKeys.refetch() } })} disabled={!keyName || createApiKey.isPending}>
                     {createApiKey.isPending ? 'Creating…' : 'Create'}
                   </Button>
                 </div>
               </div>
               {apiKeys.isLoading ? <SkeletonTable rows={3} /> : (
                 <div className="space-y-2">
-                  {keys.length === 0 && <p className="text-sm text-atlasly-muted">No API keys yet</p>}
-                  {keys.map((k) => (
-                    <div key={k.key_id ?? k.id} className="flex items-center gap-3 rounded-md border border-atlasly-line px-4 py-3">
+                  {keyRows.length === 0 ? <p className="text-sm text-atlasly-muted">No API keys yet</p> : null}
+                  {keyRows.map((key) => (
+                    <div key={String(key.id ?? key.credential_id)} className="flex items-center gap-3 rounded-md border border-atlasly-line px-4 py-3">
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-atlasly-ink">{k.name ?? 'Unnamed key'}</p>
-                        <p className="text-xs font-mono text-atlasly-muted mt-0.5">{k.prefix ?? k.key_id}…</p>
+                        <p className="text-sm font-medium text-atlasly-ink">{String(key.name ?? 'Unnamed key')}</p>
+                        <p className="text-xs font-mono text-atlasly-muted mt-0.5">{String(key.fingerprint ?? key.key_prefix ?? key.id ?? '')}</p>
                       </div>
-                      <p className="text-xs text-atlasly-muted">{formatDate(k.created_at)}</p>
+                      <p className="text-xs text-atlasly-muted">{formatDate(String(key.created_at ?? ''))}</p>
                     </div>
                   ))}
                 </div>
@@ -123,18 +117,17 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Task templates */}
         <TabsContent value="templates" className="space-y-4 mt-4">
           <Card>
             <CardHeader><CardTitle>Task Templates</CardTitle></CardHeader>
             <CardContent>
               {taskTemplates.isLoading ? <SkeletonTable rows={4} /> : (
                 <div className="space-y-2">
-                  {templates.length === 0 && <p className="text-sm text-atlasly-muted">No task templates configured</p>}
-                  {templates.map((t) => (
-                    <div key={t.id ?? t.template_id} className="rounded-md border border-atlasly-line px-4 py-3">
-                      <p className="text-sm font-medium text-atlasly-ink">{t.name ?? t.title ?? 'Template'}</p>
-                      <p className="text-xs text-atlasly-muted mt-0.5">{t.discipline ?? ''} {t.description ?? ''}</p>
+                  {templateRows.length === 0 ? <p className="text-sm text-atlasly-muted">No task templates configured</p> : null}
+                  {templateRows.map((template) => (
+                    <div key={String(template.id ?? template.template_id)} className="rounded-md border border-atlasly-line px-4 py-3">
+                      <p className="text-sm font-medium text-atlasly-ink">{String(template.name ?? 'Template')}</p>
+                      <p className="text-xs text-atlasly-muted mt-0.5">{String(template.description ?? 'No description')}</p>
                     </div>
                   ))}
                 </div>
@@ -143,17 +136,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Audit exports */}
         <TabsContent value="audit" className="space-y-4 mt-4">
           <Card>
             <CardHeader><CardTitle>Audit Exports</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-atlasly-muted">Export the full immutable audit trail for compliance reporting.</p>
-              <Button
-                variant="outline"
-                onClick={() => auditExport.mutate({})}
-                disabled={auditExport.isPending}
-              >
+              <p className="text-sm text-atlasly-muted">Run the request → generate → complete audit export flow for compliance evidence.</p>
+              <Button variant="outline" onClick={() => auditExport.mutate()} disabled={auditExport.isPending}>
                 {auditExport.isPending ? 'Exporting…' : 'Export Audit Trail'}
               </Button>
             </CardContent>

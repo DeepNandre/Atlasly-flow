@@ -1,31 +1,68 @@
 const BASE = ''
+const STORED_TOKEN_KEY = 'atlasly_session_token'
+
+export class ApiError extends Error {
+  status: number
+  code?: string
+  details?: unknown
+
+  constructor(message: string, status: number, code?: string, details?: unknown) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+}
+
+export interface SessionRecord {
+  token: string
+  role: string
+  expires_at?: string
+}
 
 function getToken(): string | null {
-  return localStorage.getItem('atlasly_session_token')
+  return localStorage.getItem(STORED_TOKEN_KEY)
 }
 
-function setToken(token: string): void {
-  localStorage.setItem('atlasly_session_token', token)
+export function setToken(token: string | null): void {
+  if (token) {
+    localStorage.setItem(STORED_TOKEN_KEY, token)
+    return
+  }
+  localStorage.removeItem(STORED_TOKEN_KEY)
 }
 
-export { setToken }
+async function parseError(res: Response): Promise<ApiError> {
+  const contentType = res.headers.get('content-type') ?? ''
+  if (contentType.includes('application/json')) {
+    const payload = await res.json().catch(() => ({})) as Record<string, unknown>
+    const nested = payload.error as Record<string, unknown> | string | undefined
+    if (nested && typeof nested === 'object') {
+      const message = String(nested.message ?? nested.code ?? `HTTP ${res.status}`)
+      return new ApiError(message, res.status, nested.code ? String(nested.code) : undefined, payload)
+    }
+    if (typeof nested === 'string') {
+      return new ApiError(nested, res.status, undefined, payload)
+    }
+    return new ApiError(String(payload.message ?? `HTTP ${res.status}`), res.status, undefined, payload)
+  }
+  const text = await res.text().catch(() => '')
+  return new ApiError(text || `HTTP ${res.status}`, res.status)
+}
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
+  const hasBody = options.body !== undefined && options.body !== null
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers ?? {}),
   }
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
-
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `HTTP ${res.status}`)
+    throw await parseError(res)
   }
 
   const contentType = res.headers.get('content-type') ?? ''
@@ -44,17 +81,22 @@ export const api = {
     }),
 }
 
-export async function bootstrap(): Promise<string> {
-  const data = await api.post<{ session?: { token?: string }; token?: string }>(
-    '/api/bootstrap',
-    {
-      org_name: 'My Organization',
-      user_name: 'owner',
-      email: 'owner@atlasly.app',
-    },
-  )
-  const token =
-    data?.session?.token ?? (data as Record<string, string>)?.token ?? ''
+export async function bootstrap(): Promise<{ token: string; sessions: SessionRecord[] }> {
+  const data = await api.post<{ session?: SessionRecord; sessions?: SessionRecord[]; token?: string }>('/api/bootstrap', {
+    org_name: 'My Organization',
+    user_name: 'owner',
+    email: 'owner@atlasly.app',
+  })
+  const token = data?.session?.token ?? (data as Record<string, string>)?.token ?? ''
   if (token) setToken(token)
-  return token
+  return { token, sessions: data.sessions ?? [] }
+}
+
+export function getStoredToken(): string | null {
+  return getToken()
+}
+
+export async function fetchSessions(): Promise<SessionRecord[]> {
+  const data = await api.get<{ sessions?: SessionRecord[] }>('/api/sessions')
+  return data.sessions ?? []
 }

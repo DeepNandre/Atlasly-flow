@@ -22,5 +22,14 @@
 - Container run: `bash scripts/run-demo-container.sh`
 - Open: `http://127.0.0.1:8080`
 - Smoke test: `bash scripts/webapp-smoke-test.sh`
+- Frontend browser smoke: `bash scripts/frontend-browser-smoke.sh`
 - Live credential validation: `bash scripts/run-live-validations.sh`
 - Full hard-gate suite: `bash scripts/mvp-gates.sh`
+
+## Frontend
+- Source app: `/Users/deepnandre/Desktop/Atlasly-flow/frontend`
+- Built assets served by the runtime: `/Users/deepnandre/Desktop/Atlasly-flow/webapp`
+- Frontend commands:
+  - `cd frontend && npm run lint`
+  - `cd frontend && npm run test`
+  - `cd frontend && npm run build`

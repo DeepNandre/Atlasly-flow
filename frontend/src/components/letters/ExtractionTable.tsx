@@ -8,7 +8,9 @@ interface Extraction {
   discipline?: string
   severity?: string
   code_ref?: string
+  code_reference?: string
   action_needed?: string
+  requested_action?: string
   description?: string
   confidence?: number
   status?: string
@@ -17,8 +19,13 @@ interface Extraction {
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-atlasly-bad/20 text-atlasly-bad',
   high: 'bg-atlasly-rust/20 text-atlasly-rust',
+  major: 'bg-atlasly-rust/20 text-atlasly-rust',
   medium: 'bg-atlasly-warn/20 text-atlasly-warn',
   low: 'bg-atlasly-ok/20 text-atlasly-ok',
+}
+
+function canReview(status?: string) {
+  return status === 'review_queueing' || status === 'human_review' || status === 'needs_review'
 }
 
 interface ExtractionTableProps {
@@ -41,48 +48,49 @@ export function ExtractionTable({ extractions, onReview }: ExtractionTableProps)
             <th className="text-left px-4 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Code Ref</th>
             <th className="text-left px-4 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Action Needed</th>
             <th className="text-left px-4 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide w-28">Confidence</th>
-            {onReview && <th className="text-left px-4 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Review</th>}
+            {onReview ? <th className="text-left px-4 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Review</th> : null}
           </tr>
         </thead>
         <tbody>
-          {extractions.map((ex, i) => {
-            const id = ex.extraction_id ?? ex.id ?? String(i)
-            const conf = typeof ex.confidence === 'number' ? Math.round(ex.confidence * 100) : null
+          {extractions.map((extraction, index) => {
+            const id = extraction.extraction_id ?? extraction.id ?? String(index)
+            const confidence = typeof extraction.confidence === 'number' ? Math.round(extraction.confidence * 100) : null
+            const status = extraction.status ?? ''
             return (
-              <tr key={id} className="border-b border-atlasly-line last:border-0 hover:bg-atlasly-bg/40">
+              <tr key={id} className="border-b border-atlasly-line last:border-0 hover:bg-atlasly-bg/40 align-top">
                 <td className="px-4 py-3">
-                  {ex.discipline ? <DisciplineBadge discipline={ex.discipline} /> : <span className="text-atlasly-muted">—</span>}
+                  {extraction.discipline ? <DisciplineBadge discipline={extraction.discipline} /> : <span className="text-atlasly-muted">—</span>}
                 </td>
                 <td className="px-4 py-3">
-                  {ex.severity ? (
-                    <Badge colorClass={SEVERITY_COLORS[ex.severity.toLowerCase()] ?? 'bg-gray-100 text-gray-700'}>
-                      {ex.severity}
+                  {extraction.severity ? (
+                    <Badge colorClass={SEVERITY_COLORS[String(extraction.severity).toLowerCase()] ?? 'bg-gray-100 text-gray-700'}>
+                      {extraction.severity}
                     </Badge>
                   ) : '—'}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-atlasly-ink">{ex.code_ref ?? '—'}</td>
-                <td className="px-4 py-3 text-atlasly-muted max-w-xs truncate">
-                  {ex.action_needed ?? ex.description ?? '—'}
-                </td>
+                <td className="px-4 py-3 font-mono text-xs text-atlasly-ink">{extraction.code_reference ?? extraction.code_ref ?? '—'}</td>
+                <td className="px-4 py-3 text-atlasly-muted max-w-lg">{extraction.requested_action ?? extraction.action_needed ?? extraction.description ?? '—'}</td>
                 <td className="px-4 py-3">
-                  {conf !== null ? (
+                  {confidence !== null ? (
                     <div className="flex items-center gap-2">
-                      <Progress value={conf} className="w-16 h-1.5" />
-                      <span className="text-xs text-atlasly-muted">{conf}%</span>
+                      <Progress value={confidence} className="w-16 h-1.5" />
+                      <span className="text-xs text-atlasly-muted">{confidence}%</span>
                     </div>
                   ) : '—'}
                 </td>
-                {onReview && (
+                {onReview ? (
                   <td className="px-4 py-3">
-                    {ex.status === 'pending' || !ex.status ? (
+                    {canReview(status) ? (
                       <div className="flex gap-1.5">
                         <button
+                          type="button"
                           onClick={() => onReview(id, 'accept')}
                           className="text-xs px-2 py-1 rounded bg-atlasly-ok/15 text-atlasly-ok hover:bg-atlasly-ok/25"
                         >
                           Accept
                         </button>
                         <button
+                          type="button"
                           onClick={() => onReview(id, 'reject')}
                           className="text-xs px-2 py-1 rounded bg-atlasly-bad/15 text-atlasly-bad hover:bg-atlasly-bad/25"
                         >
@@ -90,12 +98,10 @@ export function ExtractionTable({ extractions, onReview }: ExtractionTableProps)
                         </button>
                       </div>
                     ) : (
-                      <Badge colorClass={ex.status === 'accepted' ? 'bg-atlasly-ok/15 text-atlasly-ok' : 'bg-atlasly-bad/15 text-atlasly-bad'}>
-                        {ex.status}
-                      </Badge>
+                      <Badge colorClass="bg-atlasly-bg text-atlasly-muted">{status || 'processed'}</Badge>
                     )}
                   </td>
-                )}
+                ) : null}
               </tr>
             )
           })}

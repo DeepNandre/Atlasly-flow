@@ -83,6 +83,12 @@ paths:
       responses:
         "200":
           description: Fresh workspace summary payload
+  /api/demo/run-scenario:
+    post:
+      summary: Reset and seed a demo scenario with parsed comment letter data
+      responses:
+        "200":
+          description: Demo scenario seeded
   /api/feedback:
     post:
       summary: Submit in-app tester feedback
@@ -916,6 +922,65 @@ paths:
       responses:
         "200":
           description: Publish dispatcher result
+  /api/stage1a/extractions:
+    get:
+      summary: Fetch extracted comments for a specific letter
+      parameters:
+        - in: query
+          name: letter_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Extraction list payload
+  /api/stage1a/review:
+    post:
+      summary: Review a single extracted comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [letter_id, extraction_id, action]
+              properties:
+                letter_id:
+                  type: string
+                extraction_id:
+                  type: string
+                action:
+                  type: string
+                  enum: [accept, reject, correct]
+                note:
+                  type: string
+      responses:
+        "200":
+          description: Extraction review result
+  /api/stage1b/assign:
+    post:
+      summary: Manually assign or reassign a Stage 1B task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, assignee_id]
+              properties:
+                task_id:
+                  type: string
+                assignee_id:
+                  type: string
+      responses:
+        "200":
+          description: Task assignment updated
+  /api/enterprise/task-templates:
+    get:
+      summary: List active enterprise task templates
+      responses:
+        "200":
+          description: Task template roster
 components:
   securitySchemes:
     bearerAuth:

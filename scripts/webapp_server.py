@@ -350,12 +350,16 @@ class DemoAppState:
         accela = _connector_readiness("accela_api")
         opengov = _connector_readiness("opengov_api")
         shovels_key_present = bool(os.environ.get("ATLASLY_SHOVELS_API_KEY", "").strip())
+        stripe_enabled = os.environ.get("ATLASLY_ENABLE_STRIPE", "").strip().lower() in {"1", "true", "yes", "on"}
         stripe_key_present = bool(os.environ.get("ATLASLY_STRIPE_SECRET_KEY", "").strip())
         stripe_webhook_secret_present = bool(os.environ.get("ATLASLY_STAGE3_PROVIDER_WEBHOOK_SECRET", "").strip())
         enforce_stage3_signatures = (
             os.environ.get("ATLASLY_STAGE3_ENFORCE_SIGNATURES", "false").strip().lower() in {"1", "true", "yes", "on"}
         )
-        stripe_ready = stripe_key_present and (stripe_webhook_secret_present if enforce_stage3_signatures else True)
+        stripe_required = stripe_enabled or stripe_key_present or enforce_stage3_signatures
+        stripe_ready = (not stripe_required) or (
+            stripe_key_present and (stripe_webhook_secret_present if enforce_stage3_signatures else True)
+        )
 
         blockers: list[str] = []
         if not shovels_key_present:
@@ -366,9 +370,9 @@ class DemoAppState:
             blockers.append(f"missing_env:{env_name}")
         for env_name in opengov["missing_secret_envs"]:
             blockers.append(f"missing_env:{env_name}")
-        if not stripe_key_present:
+        if stripe_required and not stripe_key_present:
             blockers.append("missing_env:ATLASLY_STRIPE_SECRET_KEY")
-        if enforce_stage3_signatures and not stripe_webhook_secret_present:
+        if stripe_required and enforce_stage3_signatures and not stripe_webhook_secret_present:
             blockers.append("missing_env:ATLASLY_STAGE3_PROVIDER_WEBHOOK_SECRET")
 
         return {
@@ -383,6 +387,7 @@ class DemoAppState:
                 "has_any_live_connector_ready": accela["ready"] or opengov["ready"],
             },
             "stage3": {
+                "enabled": stripe_required,
                 "stripe_secret_key_present": stripe_key_present,
                 "webhook_signatures_enforced": enforce_stage3_signatures,
                 "stripe_webhook_secret_present": stripe_webhook_secret_present,
@@ -2068,6 +2073,23 @@ class WebHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"letters": list(letters), "count": len(letters)})
                 return
 
+            if path == "/api/stage1a/extractions":
+                if not STATE.ids:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "bootstrap required"})
+                    return
+                qp = parse_qs(parsed.query)
+                letter_id = str(qp.get("letter_id", [""])[0]).strip()
+                if not letter_id:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "letter_id is required"})
+                    return
+                status, payload = get_comment_letter_extractions(
+                    letter_id=letter_id,
+                    auth_context=STATE._stage1a_reviewer_auth(),
+                    store=STATE.stage1a_store,
+                )
+                self._json(HTTPStatus(status), payload)
+                return
+
             if path == "/api/enterprise/webhooks":
                 if not STATE.ids:
                     self._json(HTTPStatus.OK, {"webhooks": [], "count": 0})
@@ -2094,6 +2116,22 @@ class WebHandler(BaseHTTPRequestHandler):
                     reverse=True,
                 )
                 self._json(HTTPStatus.OK, {"keys": keys, "count": len(keys)})
+                return
+
+            if path == "/api/enterprise/task-templates":
+                if not STATE.ids:
+                    self._json(HTTPStatus.OK, {"templates": [], "count": 0})
+                    return
+                org_id = STATE.ids.organization_id
+                templates = sorted(
+                    [
+                        row for row in STATE.stage05_store.task_templates_by_id.values()
+                        if row.get("organization_id") == org_id
+                    ],
+                    key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""),
+                    reverse=True,
+                )
+                self._json(HTTPStatus.OK, {"templates": templates, "count": len(templates)})
                 return
 
             self._serve_static(path)
@@ -2130,6 +2168,55 @@ class WebHandler(BaseHTTPRequestHandler):
             if path == "/api/demo/reset":
                 payload = STATE.reset_workspace(bootstrap=bool(body.get("bootstrap", True)))
                 self._json(HTTPStatus.OK, payload)
+                return
+
+            if path == "/api/demo/run-scenario":
+                payload = STATE.reset_workspace(bootstrap=True)
+                demo_text = (
+                    "Revise panel schedule per NEC 408.4 and provide updated load calculations.\n"
+                    "Provide duct sizing report per IMC 603.2 and include stamped calculations.\n"
+                    "Clarify fire alarm sequence of operations per IFC 907.4.\n"
+                )
+                parse_status, parse_payload = post_comment_letters(
+                    request_body={
+                        "project_id": STATE.ids.project_id,
+                        "document_id": str(uuid.uuid4()),
+                        "source_filename": "demo-comments.txt",
+                    },
+                    idempotency_key=f"demo-letter-{uuid.uuid4()}",
+                    trace_id=str(uuid.uuid4()),
+                    auth_context=STATE._stage1a_reviewer_auth(),
+                    store=STATE.stage1a_store,
+                )
+                if parse_status not in {200, 202}:
+                    self._json(HTTPStatus(parse_status), parse_payload)
+                    return
+                candidates, page_text = _build_candidates(demo_text)
+                process_extraction_candidates(
+                    letter_id=parse_payload["letter_id"],
+                    candidates=candidates,
+                    page_text_by_number=page_text,
+                    ocr_quality_by_page={page: 0.92 for page in page_text},
+                    trace_id=str(uuid.uuid4()),
+                    auth_context=STATE._stage1a_reviewer_auth(),
+                    store=STATE.stage1a_store,
+                )
+                STATE.last_letter_id = str(parse_payload["letter_id"])
+                approve_status, approve_payload = post_comment_letter_approve(
+                    letter_id=STATE.last_letter_id,
+                    request_body={},
+                    trace_id=str(uuid.uuid4()),
+                    auth_context=STATE._stage1a_reviewer_auth(),
+                    store=STATE.stage1a_store,
+                )
+                self._json(
+                    HTTPStatus.OK if approve_status == 200 else HTTPStatus(approve_status),
+                    {
+                        "workspace": payload,
+                        "letter_id": STATE.last_letter_id,
+                        "approval": approve_payload,
+                    },
+                )
                 return
 
             if path == "/api/feedback":
@@ -2780,6 +2867,30 @@ class WebHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if path == "/api/stage1a/review":
+                if not STATE.ids:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "bootstrap required"})
+                    return
+                letter_id = str(body.get("letter_id") or "").strip()
+                extraction_id = str(body.get("extraction_id") or "").strip()
+                action = str(body.get("action") or "accept").strip().lower()
+                if not letter_id or not extraction_id:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "letter_id and extraction_id are required"})
+                    return
+                decision = {"accept": "accepted", "reject": "rejected", "correct": "corrected"}.get(action, action)
+                correction_payload = body.get("correction_payload") if isinstance(body.get("correction_payload"), dict) else None
+                status, payload = review_extraction(
+                    letter_id=letter_id,
+                    extraction_id=extraction_id,
+                    decision=decision,
+                    correction_payload=correction_payload,
+                    rationale=str(body.get("note") or body.get("rationale") or "Reviewed in control tower."),
+                    auth_context=STATE._stage1a_reviewer_auth(),
+                    store=STATE.stage1a_store,
+                )
+                self._json(HTTPStatus(status), payload)
+                return
+
             if path == "/api/stage1b/escalation-tick":
                 tick_key = str(body.get("tick_key") or f"tick-{datetime.now(timezone.utc).replace(second=0, microsecond=0).isoformat()}").strip()
                 user_mode = str(body.get("user_mode") or "immediate").strip().lower()
@@ -2792,6 +2903,39 @@ class WebHandler(BaseHTTPRequestHandler):
                     now=datetime.now(timezone.utc),
                 )
                 self._json(HTTPStatus.OK, payload)
+                return
+
+            if path == "/api/stage1b/assign":
+                if not STATE.ids:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "bootstrap required"})
+                    return
+                task_id = str(body.get("task_id") or "").strip()
+                assignee_id = str(body.get("assignee_id") or "").strip()
+                if not task_id or not assignee_id:
+                    self._json(HTTPStatus.BAD_REQUEST, {"error": "task_id and assignee_id are required"})
+                    return
+                ticket_store = STATE.stage1b_repo.load_ticket_store()
+                task = ticket_store.tasks_by_id.get(task_id)
+                if not task:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "task not found"})
+                    return
+                task["assignee_user_id"] = assignee_id
+                task["updated_at"] = _iso()
+                task["status"] = "in_progress" if task.get("status") in {None, "", "open"} else task.get("status")
+                ticket_store.outbox_events.append(
+                    {
+                        "event_id": str(uuid.uuid4()),
+                        "organization_id": STATE.ids.organization_id,
+                        "event_type": "task.manually_assigned",
+                        "aggregate_type": "task",
+                        "aggregate_id": task_id,
+                        "trace_id": str(uuid.uuid4()),
+                        "occurred_at": _iso(),
+                        "payload": {"task_id": task_id, "assignee_user_id": assignee_id},
+                    }
+                )
+                STATE.stage1b_repo.save_ticket_store(ticket_store)
+                self._json(HTTPStatus.OK, {"task": task})
                 return
 
             if path == "/api/stage2/resolve-ahj":

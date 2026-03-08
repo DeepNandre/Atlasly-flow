@@ -4,6 +4,7 @@ import { ACTIVITY_LABELS } from '@/lib/constants'
 interface ActivityEvent {
   event_type?: string
   event_name?: string
+  summary?: string
   created_at?: string
   occurred_at?: string
   meta?: Record<string, unknown>
@@ -21,7 +22,7 @@ export function ActivityFeed({ events, maxItems = 20 }: ActivityFeedProps) {
     <ol className="space-y-3">
       {items.map((ev, i) => {
         const type = ev.event_type ?? ev.event_name ?? 'event'
-        const label = ACTIVITY_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\./g, ' › ')
+        const label = ev.summary ?? ACTIVITY_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\./g, ' › ')
         const time = ev.created_at ?? ev.occurred_at
         return (
           <li key={i} className="flex items-start gap-3">

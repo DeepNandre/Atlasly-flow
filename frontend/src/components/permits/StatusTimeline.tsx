@@ -14,7 +14,9 @@ const ORDER = TIMELINE_STEPS.map((s) => s.key)
 
 interface TimelineEvent {
   status?: string
+  normalized_status?: string
   occurred_at?: string
+  observed_at?: string
   created_at?: string
   note?: string
 }
@@ -32,7 +34,7 @@ export function StatusTimeline({ currentStatus, events = [] }: StatusTimelinePro
       {TIMELINE_STEPS.map((step, i) => {
         const done = i < currentIndex
         const active = i === currentIndex
-        const event = events.find((e) => e.status === step.key)
+        const event = events.find((e) => (e.normalized_status ?? e.status) === step.key)
 
         return (
           <div key={step.key} className="flex items-start flex-1 min-w-0">
@@ -52,7 +54,7 @@ export function StatusTimeline({ currentStatus, events = [] }: StatusTimelinePro
                   {step.label}
                 </p>
                 {event && (
-                  <p className="text-xs text-atlasly-muted mt-0.5">{formatDate(event.occurred_at ?? event.created_at)}</p>
+                  <p className="text-xs text-atlasly-muted mt-0.5">{formatDate(event.observed_at ?? event.occurred_at ?? event.created_at)}</p>
                 )}
               </div>
             </div>

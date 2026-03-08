@@ -27,6 +27,7 @@ export const ALL_ROLES: Role[] = Object.values(ROLES)
 export const PERMIT_STATUSES = {
   draft: { label: 'Draft', color: 'bg-atlasly-muted/20 text-atlasly-muted' },
   submitted: { label: 'Submitted', color: 'bg-blue-100 text-blue-700' },
+  under_review: { label: 'Under Review', color: 'bg-atlasly-warn/20 text-atlasly-warn' },
   in_review: { label: 'In Review', color: 'bg-atlasly-warn/20 text-atlasly-warn' },
   approved: { label: 'Approved', color: 'bg-atlasly-teal/20 text-atlasly-teal' },
   issued: { label: 'Issued', color: 'bg-atlasly-ok/20 text-atlasly-ok' },
@@ -38,6 +39,8 @@ export const TASK_STATUSES = {
   in_progress: { label: 'In Progress', color: 'bg-atlasly-warn/20 text-atlasly-warn' },
   resolved: { label: 'Resolved', color: 'bg-atlasly-ok/20 text-atlasly-ok' },
   escalated: { label: 'Escalated', color: 'bg-atlasly-bad/20 text-atlasly-bad' },
+  blocked: { label: 'Blocked', color: 'bg-atlasly-rust/20 text-atlasly-rust' },
+  done: { label: 'Done', color: 'bg-atlasly-ok/20 text-atlasly-ok' },
 } as const
 
 export const DISCIPLINES = {
@@ -53,6 +56,9 @@ export const DISCIPLINES = {
 export const LETTER_STATUSES = {
   parsing: { label: 'Parsing…', color: 'bg-atlasly-warn/20 text-atlasly-warn' },
   needs_review: { label: 'Needs Review', color: 'bg-atlasly-rust/20 text-atlasly-rust' },
+  review_queueing: { label: 'Queued for Review', color: 'bg-atlasly-rust/20 text-atlasly-rust' },
+  human_review: { label: 'In Review', color: 'bg-atlasly-rust/20 text-atlasly-rust' },
+  auto_accepted: { label: 'Auto Accepted', color: 'bg-atlasly-teal/20 text-atlasly-teal' },
   approved: { label: 'Approved', color: 'bg-atlasly-ok/20 text-atlasly-ok' },
   tasks_created: { label: 'Tasks Created', color: 'bg-atlasly-teal/20 text-atlasly-teal' },
 } as const
