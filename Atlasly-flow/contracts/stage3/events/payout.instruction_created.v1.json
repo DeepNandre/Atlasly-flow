@@ -1,0 +1,17 @@
+{
+  "event_type": "payout.instruction_created",
+  "event_version": 1,
+  "aggregate_type": "payout_instruction",
+  "required_payload_fields": [
+    "instruction_id",
+    "milestone_id",
+    "permit_id",
+    "project_id",
+    "amount",
+    "currency",
+    "beneficiary_id",
+    "provider",
+    "instruction_status",
+    "created_at"
+  ]
+}

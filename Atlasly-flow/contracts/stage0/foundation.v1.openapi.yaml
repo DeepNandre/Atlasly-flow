@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: Stage 0 Foundation API
+  version: 1.0.0
+paths:
+  /orgs:
+    post:
+      summary: Create organization and default workspace
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Idempotent replay }
+        "201": { description: Created }
+        "409": { description: Conflict }
+        "422": { description: Validation failed }
+  /orgs/{orgId}/users:
+    post:
+      summary: Invite org user with role
+      responses:
+        "201": { description: Created }
+        "403": { description: Forbidden }
+        "409": { description: Conflict }
+  /projects:
+    post:
+      summary: Create project with AHJ shell
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Idempotent replay }
+        "201": { description: Created }
+        "403": { description: Forbidden }
+        "404": { description: Workspace not found }
+  /projects/{projectId}/documents:
+    post:
+      summary: Upload document metadata/version
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Idempotent replay }
+        "201": { description: Accepted }
+        "415": { description: Unsupported media type }
+        "422": { description: Validation failed }
+  /projects/{projectId}/tasks:
+    post:
+      summary: Create task
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Idempotent replay }
+        "201": { description: Created }
+        "403": { description: Forbidden }
+  /tasks/{taskId}:
+    patch:
+      summary: Update task status/assignee/due date
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Updated }
+        "403": { description: Forbidden }
+        "412": { description: Precondition failed }
+        "422": { description: Validation failed }
+  /permits/{permitId}:
+    patch:
+      summary: Update permit status
+      responses:
+        "200": { description: Updated }
+        "403": { description: Forbidden }
+        "422": { description: Validation failed }
+  /projects/{projectId}/timeline:
+    get:
+      summary: Project audit timeline
+      responses:
+        "200": { description: Timeline payload }
+        "403": { description: Forbidden }
+        "404": { description: Project not found }
+

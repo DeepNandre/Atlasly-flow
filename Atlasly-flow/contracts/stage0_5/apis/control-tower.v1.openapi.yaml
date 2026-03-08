@@ -1,0 +1,924 @@
+openapi: 3.1.0
+info:
+  title: Atlasly Control Tower Runtime API
+  version: "1.0"
+security:
+  - bearerAuth: []
+paths:
+  /api/portfolio:
+    get:
+      summary: Portfolio rollup for control tower
+      responses:
+        "200":
+          description: Portfolio summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bootstrapped, generated_at, kpis, permit_status_breakdown, projects]
+                properties:
+                  bootstrapped:
+                    type: boolean
+                  generated_at:
+                    type: string
+                    format: date-time
+                  kpis:
+                    type: object
+                  permit_status_breakdown:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  projects:
+                    type: array
+                    items:
+                      type: object
+                      required: [project_id, permit_count, tasks]
+  /api/activity:
+    get:
+      summary: Cross-stage activity stream
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Activity feed payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bootstrapped, generated_at, events]
+                properties:
+                  bootstrapped:
+                    type: boolean
+                  generated_at:
+                    type: string
+                    format: date-time
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      required: [stage, event_type, entity_id, occurred_at, summary]
+  /api/sessions:
+    get:
+      summary: List active demo sessions and role tokens
+      responses:
+        "200":
+          description: Session roster payload
+  /api/demo/reset:
+    post:
+      summary: Reset demo state and optionally bootstrap a fresh workspace
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bootstrap:
+                  type: boolean
+      responses:
+        "200":
+          description: Fresh workspace summary payload
+  /api/feedback:
+    post:
+      summary: Submit in-app tester feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                category:
+                  type: string
+                context:
+                  type: object
+      responses:
+        "201":
+          description: Feedback stored
+  /api/telemetry:
+    get:
+      summary: Read captured UI telemetry for demo sessions
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+      responses:
+        "200":
+          description: Telemetry stream payload
+    post:
+      summary: Capture UI telemetry event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_type]
+              properties:
+                event_type:
+                  type: string
+                level:
+                  type: string
+                payload:
+                  type: object
+      responses:
+        "201":
+          description: Telemetry event stored
+  /api/permit-ops:
+    get:
+      summary: Permit operations health summary
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Permit ops details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bootstrapped, generated_at, connector_health, transition_review_queue, drift_alerts]
+                properties:
+                  connector_health:
+                    type: object
+                    required: [runs_total, success_rate]
+                  transition_review_queue:
+                    type: object
+                    required: [open_count, items]
+                  drift_alerts:
+                    type: object
+                    required: [open_count, items]
+                  reconciliation:
+                    type: object
+  /api/permit-ops/resolve-transition:
+    post:
+      summary: Resolve transition review queue item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [review_id, resolution_state]
+              properties:
+                review_id:
+                  type: string
+                resolution_state:
+                  type: string
+                  enum: [open, resolved, dismissed]
+      responses:
+        "200":
+          description: Transition review updated
+  /api/permit-ops/resolve-drift:
+    post:
+      summary: Resolve drift alert queue item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alert_id, status]
+              properties:
+                alert_id:
+                  type: string
+                status:
+                  type: string
+                  enum: [open, resolved, dismissed]
+      responses:
+        "200":
+          description: Drift alert updated
+  /api/finance-ops:
+    get:
+      summary: Finance operations timeline and reconciliation state
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Finance ops details
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bootstrapped, generated_at, payouts, financial_events, reconciliation, outbox]
+                properties:
+                  payouts:
+                    type: object
+                    required: [total, state_breakdown, recent_instructions]
+                  financial_events:
+                    type: array
+                    items:
+                      type: object
+                  reconciliation:
+                    type: object
+                  outbox:
+                    type: object
+                    required: [pending_count, failed_count]
+  /api/enterprise/overview:
+    get:
+      summary: Enterprise readiness operations overview
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Enterprise ops summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bootstrapped, generated_at, webhooks, connector_runs, api_credentials, task_templates, audit_exports, slo, integration_readiness, launch_readiness]
+                properties:
+                  webhooks:
+                    type: object
+                    required: [total, active, recent, deliveries_recent, dead_letter_total]
+                  connector_runs:
+                    type: object
+                    required: [total, recent]
+                  api_credentials:
+                    type: object
+                    required: [total, active, recent]
+                  task_templates:
+                    type: object
+                    required: [total, active, recent]
+                  audit_exports:
+                    type: object
+                    required: [total, recent]
+                  dashboard:
+                    type: object
+                    nullable: true
+                  slo:
+                    type: object
+                  integration_readiness:
+                    type: object
+                    required: [bootstrapped, overall_ready, launch_blockers]
+                  launch_readiness:
+                    type: object
+                    required: [bootstrapped, overall_ready, checklist, blockers]
+  /api/enterprise/webhook-events:
+    get:
+      summary: List enterprise webhook delivery attempts
+      parameters:
+        - in: query
+          name: subscription_id
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [delivered, retrying, dead_lettered]
+        - in: query
+          name: attempt_gte
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: Webhook delivery list
+  /api/enterprise/dashboard:
+    get:
+      summary: Read latest Stage 0.5 dashboard KPI snapshot
+      responses:
+        "200":
+          description: Dashboard KPI snapshot
+  /api/enterprise/alerts:
+    get:
+      summary: Enterprise alert surface for webhook DLQ and replay backlog
+      responses:
+        "200":
+          description: Enterprise alert summary
+  /api/enterprise/slo:
+    get:
+      summary: Enterprise SLO snapshot and incident indicators
+      responses:
+        "200":
+          description: SLO snapshot payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhook, connectors, api_keys, transition_reviews, payout_reconciliation, incidents]
+                properties:
+                  webhook:
+                    type: object
+                  connectors:
+                    type: object
+                  api_keys:
+                    type: object
+                  transition_reviews:
+                    type: object
+                  payout_reconciliation:
+                    type: object
+                  incidents:
+                    type: array
+                    items:
+                      type: object
+  /api/enterprise/integrations-readiness:
+    get:
+      summary: Integration credential readiness for Stage 2 live connectors and Stage 3 provider flows
+      responses:
+        "200":
+          description: Integration readiness payload
+  /api/enterprise/launch-readiness:
+    get:
+      summary: Composite launch gate status for runtime hardening, SLOs, and external readiness
+      responses:
+        "200":
+          description: Launch readiness checklist payload
+  /api/enterprise/audit-evidence:
+    get:
+      summary: Build evidence pack manifest for completed audit export
+      parameters:
+        - in: query
+          name: export_id
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evidence pack payload
+  /api/enterprise/webhooks:
+    post:
+      summary: Register enterprise webhook subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_url, event_types]
+              properties:
+                target_url:
+                  type: string
+                  format: uri
+                event_types:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Idempotent replay result
+        "201":
+          description: Subscription created
+  /api/enterprise/webhook-delivery:
+    post:
+      summary: Record enterprise webhook delivery attempt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attempt]
+              properties:
+                subscription_id:
+                  type: string
+                attempt:
+                  type: integer
+                response_code:
+                  type: integer
+                error_code:
+                  type: string
+      responses:
+        "200":
+          description: Delivery attempt persisted
+  /api/enterprise/webhook-replay:
+    post:
+      summary: Queue replay for dead-lettered webhook delivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [delivery_id]
+              properties:
+                delivery_id:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Replay job queued
+  /api/enterprise/connector-sync:
+    post:
+      summary: Trigger Stage 0.5 connector run
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connector_name:
+                  type: string
+                run_mode:
+                  type: string
+                  enum: [delta, full]
+      responses:
+        "200":
+          description: Idempotent replay result
+        "202":
+          description: Connector run accepted
+  /api/enterprise/connector-error:
+    post:
+      summary: Log connector error classification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [run_id, classification, message]
+              properties:
+                run_id:
+                  type: string
+                classification:
+                  type: string
+                message:
+                  type: string
+      responses:
+        "200":
+          description: Connector error logged
+  /api/enterprise/connector-complete:
+    post:
+      summary: Complete running connector run with counters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                run_id:
+                  type: string
+                final_status:
+                  type: string
+                  enum: [succeeded, partial, failed, cancelled]
+                records_fetched:
+                  type: integer
+                records_synced:
+                  type: integer
+                records_failed:
+                  type: integer
+      responses:
+        "200":
+          description: Connector run completed
+  /api/enterprise/api-keys:
+    post:
+      summary: Create scoped enterprise API credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Idempotent replay result
+        "201":
+          description: API credential created
+  /api/enterprise/api-keys/rotate:
+    post:
+      summary: Rotate existing API credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential_id, name, scopes]
+              properties:
+                credential_id:
+                  type: string
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Credential rotated
+        "201":
+          description: Credential rotated and replacement created
+  /api/enterprise/api-keys/mark-used:
+    post:
+      summary: Record API credential usage metadata (last-used tracking)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credential_id:
+                  type: string
+                usage_source:
+                  type: string
+      responses:
+        "200":
+          description: Credential usage tracked
+  /api/enterprise/api-keys/policy-scan:
+    post:
+      summary: Evaluate API credential rotation policy compliance
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_age_days:
+                  type: integer
+                warning_days:
+                  type: integer
+                auto_revoke_overdue:
+                  type: boolean
+      responses:
+        "200":
+          description: Rotation policy scan report
+  /api/enterprise/api-keys/revoke:
+    post:
+      summary: Revoke API credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential_id]
+              properties:
+                credential_id:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Credential revoked
+  /api/enterprise/task-templates:
+    post:
+      summary: Create enterprise task template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, template]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                template:
+                  type: object
+      responses:
+        "201":
+          description: Template created
+  /api/enterprise/task-templates/archive:
+    post:
+      summary: Archive task template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_id]
+              properties:
+                template_id:
+                  type: string
+      responses:
+        "200":
+          description: Template archived
+  /api/enterprise/audit-exports/request:
+    post:
+      summary: Request security audit export
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                export_type:
+                  type: string
+      responses:
+        "201":
+          description: Audit export queued
+  /api/enterprise/audit-exports/run:
+    post:
+      summary: Mark audit export as running
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [export_id]
+              properties:
+                export_id:
+                  type: string
+      responses:
+        "200":
+          description: Audit export running
+  /api/enterprise/audit-exports/complete:
+    post:
+      summary: Complete audit export with artifact references
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [export_id, checksum, storage_uri, access_log_ref]
+              properties:
+                export_id:
+                  type: string
+                checksum:
+                  type: string
+                storage_uri:
+                  type: string
+                access_log_ref:
+                  type: string
+      responses:
+        "200":
+          description: Audit export completed
+  /api/enterprise/dashboard-snapshot:
+    post:
+      summary: Upsert Stage 0.5 KPI dashboard snapshot
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Snapshot upserted
+  /api/stage1a/upload:
+    post:
+      summary: Enqueue Stage 1A upload for OCR and extraction pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, mime_type, document_base64]
+              properties:
+                filename:
+                  type: string
+                mime_type:
+                  type: string
+                document_base64:
+                  type: string
+                idempotency_key:
+                  type: string
+                auto_process:
+                  type: boolean
+      responses:
+        "200":
+          description: Idempotent replay
+        "202":
+          description: Upload queued
+  /api/stage1a/process-upload:
+    post:
+      summary: Process a queued Stage 1A upload job
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                job_id:
+                  type: string
+      responses:
+        "200":
+          description: Upload processing result
+  /api/stage1a/quality-report:
+    get:
+      summary: Stage 1A extraction quality report with drift/release gate checks
+      parameters:
+        - in: query
+          name: target
+          schema:
+            type: string
+            enum: [staging, prod]
+      responses:
+        "200":
+          description: Quality report payload
+  /api/stage1b/routing-audit:
+    get:
+      summary: Explainable routing decisions and reassignment analytics
+      responses:
+        "200":
+          description: Routing audit payload
+  /api/stage1b/escalation-tick:
+    post:
+      summary: Trigger retry-safe escalation scheduler tick
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tick_key:
+                  type: string
+                user_mode:
+                  type: string
+                  enum: [immediate, digest]
+      responses:
+        "200":
+          description: Scheduler tick summary
+  /api/stage2/resolve-ahj:
+    post:
+      summary: Resolve AHJ metadata from project address via Shovels integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address]
+              properties:
+                address:
+                  type: object
+                  properties:
+                    line1:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    postal_code:
+                      type: string
+      responses:
+        "200":
+          description: AHJ intelligence lookup result
+  /api/stage2/connector-credentials:
+    get:
+      summary: List connector credential references for Stage 2
+      responses:
+        "200":
+          description: Connector credential list
+  /api/stage2/connector-credentials/rotate:
+    post:
+      summary: Rotate connector credential reference for Stage 2 live pollers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connector, credential_ref]
+              properties:
+                connector:
+                  type: string
+                ahj_id:
+                  type: string
+                credential_ref:
+                  type: string
+                auth_scheme:
+                  type: string
+                  enum: [bearer, api_key_header]
+      responses:
+        "200":
+          description: Connector credential updated
+  /api/stage2/poll-live:
+    post:
+      summary: Trigger live connector poll using configured credential refs
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connector:
+                  type: string
+                ahj_id:
+                  type: string
+      responses:
+        "200":
+          description: Live poll completed
+  /api/stage3/payout:
+    post:
+      summary: Create payout instruction from control tower finance ops panel
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                currency:
+                  type: string
+                beneficiary_id:
+                  type: string
+                provider:
+                  type: string
+                  enum: [provider_sandbox, demo_sandbox, stripe, stripe_connect, stripe_sandbox, stripe_connect_sandbox]
+                step_up_authenticated:
+                  type: boolean
+      responses:
+        "200":
+          description: Idempotent replay payout result
+        "201":
+          description: Payout instruction created
+  /api/stage3/provider-event:
+    post:
+      summary: Register normalized provider event for latest payout instruction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider_event_type]
+              properties:
+                provider_event_type:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+      responses:
+        "200":
+          description: Provider event applied
+  /api/stage3/reconcile:
+    post:
+      summary: Run Stage 3 reconciliation for active provider
+      responses:
+        "200":
+          description: Reconciliation completed
+  /api/stage3/publish-outbox:
+    post:
+      summary: Publish pending stage3 outbox events
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_events:
+                  type: integer
+                  minimum: 1
+                  maximum: 500
+      responses:
+        "200":
+          description: Publish dispatcher result
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: session-token

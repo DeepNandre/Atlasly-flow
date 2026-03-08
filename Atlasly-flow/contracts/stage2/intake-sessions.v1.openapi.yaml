@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info:
+  title: Stage 2 Intake Sessions API
+  version: 1.0.0
+paths:
+  /intake-sessions:
+    post:
+      summary: Initialize guided intake
+      operationId: createIntakeSession
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, permit_type]
+              properties:
+                project_id:
+                  type: string
+                  format: uuid
+                permit_type:
+                  type: string
+                  enum: [commercial_ti, rooftop_solar, electrical_service_upgrade]
+                ahj_id:
+                  type: string
+                  minLength: 1
+                seed_answers:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Intake session created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [session_id, project_id, permit_type, current_step, status, version]
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  project_id:
+                    type: string
+                    format: uuid
+                  permit_type:
+                    type: string
+                    enum: [commercial_ti, rooftop_solar, electrical_service_upgrade]
+                  current_step:
+                    type: string
+                  status:
+                    type: string
+                    enum: [in_progress, completed, abandoned]
+                  version:
+                    type: integer
+        "400":
+          description: Invalid request
+        "409":
+          description: Idempotency conflict
+        "422":
+          description: Validation error
+  /intake-sessions/{sessionId}:
+    patch:
+      summary: Update intake answers and step state
+      operationId: updateIntakeSession
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: If-Match-Version
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_step:
+                  type: string
+                answers_patch:
+                  type: object
+                  additionalProperties: true
+                status:
+                  type: string
+                  enum: [in_progress, completed, abandoned]
+      responses:
+        "200":
+          description: Intake session updated
+        "404":
+          description: Session not found
+        "409":
+          description: Version conflict
+        "422":
+          description: Validation error

@@ -1,0 +1,14 @@
+{
+  "event_type": "milestone.verified",
+  "event_version": 1,
+  "aggregate_type": "milestone",
+  "required_payload_fields": [
+    "milestone_id",
+    "permit_id",
+    "project_id",
+    "verification_source",
+    "verified_at",
+    "verification_rule_version",
+    "evidence_refs"
+  ]
+}

@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info:
+  title: Stage 1B Create Tasks API
+  version: 1.0.0
+paths:
+  /comment-letters/{letterId}/create-tasks:
+    post:
+      summary: Create tasks from approved extraction snapshot
+      operationId: createTasksFromApprovedExtractions
+      parameters:
+        - in: path
+          name: letterId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approved_extraction_ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    format: uuid
+                  uniqueItems: true
+                dry_run:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Idempotent replay of a completed run
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - letter_id
+                  - created_count
+                  - existing_count
+                  - task_ids
+                  - idempotency_key
+                  - run_status
+                properties:
+                  letter_id:
+                    type: string
+                    format: uuid
+                  created_count:
+                    type: integer
+                    minimum: 0
+                  existing_count:
+                    type: integer
+                    minimum: 0
+                  task_ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                  idempotency_key:
+                    type: string
+                  run_status:
+                    type: string
+                    enum: [COMPLETED]
+        "201":
+          description: Tasks created
+          content:
+            application/json:
+              schema:
+                $ref: "#/paths/~1comment-letters~1{letterId}~1create-tasks/post/responses/200/content/application~1json/schema"
+        "400":
+          description: Invalid request shape
+        "403":
+          description: Caller not authorized for project
+        "404":
+          description: Letter not found
+        "409":
+          description: Idempotency conflict (same key, different request hash)
+        "422":
+          description: Validation failure (e.g. non-approved extraction ids)

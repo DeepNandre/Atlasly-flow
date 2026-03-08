@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  title: Stage 2 Connector Poll API
+  version: 1.0.0
+paths:
+  /connectors/{ahj}/poll:
+    post:
+      summary: Trigger status sync run for a connector/AHJ
+      operationId: pollConnector
+      parameters:
+        - in: path
+          name: ahj
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connector]
+              properties:
+                connector:
+                  type: string
+                  enum: [accela_api, opengov_api, cloudpermit_portal_runner]
+                dry_run:
+                  type: boolean
+                  default: false
+                force:
+                  type: boolean
+                  default: false
+      responses:
+        "202":
+          description: Sync run accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run_id, connector, ahj_id, status, run_started_at]
+                properties:
+                  run_id:
+                    type: string
+                    format: uuid
+                  connector:
+                    type: string
+                    enum: [accela_api, opengov_api, cloudpermit_portal_runner]
+                  ahj_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [running, succeeded, failed, partial, cancelled]
+                  run_started_at:
+                    type: string
+                    format: date-time
+        "409":
+          description: Existing in-flight run conflict
+        "422":
+          description: Validation error

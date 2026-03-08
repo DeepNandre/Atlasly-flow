@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage2/permit.application_generated.v1.schema.json",
+  "title": "permit.application_generated v1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "organization_id",
+    "aggregate_type",
+    "aggregate_id",
+    "occurred_at",
+    "produced_by",
+    "idempotency_key",
+    "trace_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "permit.application_generated" },
+    "event_version": { "const": 1 },
+    "organization_id": { "type": "string", "format": "uuid" },
+    "aggregate_type": { "const": "permit" },
+    "aggregate_id": { "type": "string", "format": "uuid" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_by": { "type": "string", "minLength": 1 },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "payload": {
+      "type": "object",
+      "required": [
+        "permit_id",
+        "application_id",
+        "form_template_id",
+        "mapping_version",
+        "generated_at"
+      ],
+      "properties": {
+        "permit_id": { "type": "string", "format": "uuid" },
+        "application_id": { "type": "string", "format": "uuid" },
+        "form_template_id": { "type": "string", "minLength": 1 },
+        "mapping_version": { "type": "integer", "minimum": 1 },
+        "generated_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

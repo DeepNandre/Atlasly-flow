@@ -1,0 +1,12 @@
+{
+  "event_type": "task.assignment_overdue",
+  "event_version": 1,
+  "aggregate_type": "task",
+  "required_payload_fields": [
+    "task_id",
+    "assignee_id",
+    "overdue_by_hours",
+    "escalation_level",
+    "policy_id"
+  ]
+}

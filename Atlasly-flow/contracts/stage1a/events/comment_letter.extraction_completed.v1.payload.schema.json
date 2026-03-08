@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasly/contracts/stage1a/events/comment_letter.extraction_completed.v1.payload.schema.json",
+  "title": "comment_letter.extraction_completed.v1.payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "letter_id",
+    "document_id",
+    "extraction_count",
+    "avg_confidence",
+    "requires_review_count",
+    "completed_at"
+  ],
+  "properties": {
+    "letter_id": {"type": "string", "format": "uuid"},
+    "document_id": {"type": "string", "format": "uuid"},
+    "extraction_count": {"type": "integer", "minimum": 0},
+    "avg_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "requires_review_count": {"type": "integer", "minimum": 0},
+    "completed_at": {"type": "string", "format": "date-time"}
+  }
+}

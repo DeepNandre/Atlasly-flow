@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webhook.delivery_failed.v1",
+  "type": "object",
+  "required": ["subscription_id", "event_id", "attempt", "error_code"],
+  "properties": {
+    "subscription_id": { "type": "string", "format": "uuid" },
+    "event_id": { "type": "string" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "error_code": { "type": "string" }
+  },
+  "additionalProperties": false
+}

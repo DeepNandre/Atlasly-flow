@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "stage2/intake.completed.v1.schema.json",
+  "title": "intake.completed v1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "organization_id",
+    "aggregate_type",
+    "aggregate_id",
+    "occurred_at",
+    "produced_by",
+    "idempotency_key",
+    "trace_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "intake.completed" },
+    "event_version": { "const": 1 },
+    "organization_id": { "type": "string", "format": "uuid" },
+    "aggregate_type": { "const": "intake_session" },
+    "aggregate_id": { "type": "string", "format": "uuid" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_by": { "type": "string", "minLength": 1 },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["session_id", "project_id", "permit_type", "ahj_id"],
+      "properties": {
+        "session_id": { "type": "string", "format": "uuid" },
+        "project_id": { "type": "string", "format": "uuid" },
+        "permit_type": {
+          "type": "string",
+          "enum": ["commercial_ti", "rooftop_solar", "electrical_service_upgrade"]
+        },
+        "ahj_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

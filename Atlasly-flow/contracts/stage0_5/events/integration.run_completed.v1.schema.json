@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "integration.run_completed.v1",
+  "type": "object",
+  "required": ["run_id", "status", "duration_ms", "records_synced"],
+  "properties": {
+    "run_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": ["succeeded", "partial", "failed", "cancelled"]
+    },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "records_synced": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

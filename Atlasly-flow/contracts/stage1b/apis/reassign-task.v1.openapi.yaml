@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: Stage 1B Reassign Task API
+  version: 1.0.0
+paths:
+  /tasks/{taskId}/reassign:
+    post:
+      summary: Reassign task owner with required feedback capture
+      operationId: reassignTaskWithFeedback
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - from_assignee_id
+                - to_assignee_id
+                - feedback_reason_code
+              properties:
+                from_assignee_id:
+                  type: string
+                  format: uuid
+                to_assignee_id:
+                  type: string
+                  format: uuid
+                feedback_reason_code:
+                  type: string
+                  enum:
+                    - WRONG_DISCIPLINE
+                    - WRONG_TRADE_PARTNER
+                    - WRONG_PROJECT_ROLE
+                    - ASSIGNEE_UNAVAILABLE
+                    - MISSING_RULE
+                    - RULE_PRIORITY_ISSUE
+                    - TEMP_CAPACITY_REDIRECT
+                    - OTHER_VERIFIED
+                feedback_subreason:
+                  type: string
+                source_rule_id:
+                  type: string
+                  format: uuid
+                source_confidence:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+      responses:
+        "200":
+          description: Reassignment applied and feedback stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task_id, from_assignee_id, to_assignee_id, feedback_id]
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  from_assignee_id:
+                    type: string
+                    format: uuid
+                  to_assignee_id:
+                    type: string
+                    format: uuid
+                  feedback_id:
+                    type: string
+                    format: uuid
+        "403":
+          description: Caller not project member or lacks task write permission
+        "404":
+          description: Task not found
+        "422":
+          description: Validation failure (e.g., missing reason or no actual reassignment)

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Stage0EventEnvelopeV1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "organization_id",
+    "aggregate_type",
+    "aggregate_id",
+    "occurred_at",
+    "produced_by",
+    "idempotency_key",
+    "trace_id",
+    "payload",
+    "signature"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "document.uploaded",
+        "document.ocr_completed",
+        "task.created",
+        "task.assigned",
+        "permit.status_changed"
+      ]
+    },
+    "event_version": { "type": "integer", "const": 1 },
+    "organization_id": { "type": "string", "format": "uuid" },
+    "aggregate_type": { "type": "string" },
+    "aggregate_id": { "type": "string", "format": "uuid" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_by": { "type": "string" },
+    "idempotency_key": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "signature": { "type": "string" },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": true
+}
+

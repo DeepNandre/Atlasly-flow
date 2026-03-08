@@ -1,0 +1,40 @@
+openapi: 3.1.0
+info:
+  title: Stage 0.5 Connector Sync API
+  version: 1.0.0
+paths:
+  /connectors/{name}/sync:
+    post:
+      summary: Trigger connector synchronization run
+      operationId: triggerConnectorSync
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+            enum: [accela_api, opengov_api, cloudpermit_portal_runner]
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                run_mode:
+                  type: string
+                  enum: [delta, full]
+                  default: delta
+      responses:
+        "202":
+          description: Run started
+        "200":
+          description: Idempotent replay
+        "422":
+          description: Validation error

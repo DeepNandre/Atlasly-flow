@@ -1,0 +1,52 @@
+openapi: 3.1.0
+info:
+  title: Stage 0.5 Webhook Subscription API
+  version: 1.0.0
+paths:
+  /webhooks:
+    post:
+      summary: Register outbound webhook subscription
+      operationId: createWebhookSubscription
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_url, event_types]
+              properties:
+                target_url:
+                  type: string
+                  format: uri
+                event_types:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      [
+                        document.uploaded,
+                        document.ocr_completed,
+                        task.created,
+                        task.assigned,
+                        permit.status_changed,
+                        integration.run_started,
+                        integration.run_completed,
+                        webhook.delivery_failed
+                      ]
+      responses:
+        "201":
+          description: Created
+        "200":
+          description: Idempotent replay
+        "409":
+          description: Active subscription conflict
+        "422":
+          description: Validation error

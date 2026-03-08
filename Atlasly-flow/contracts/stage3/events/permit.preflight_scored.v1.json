@@ -1,0 +1,16 @@
+{
+  "event_type": "permit.preflight_scored",
+  "event_version": 1,
+  "aggregate_type": "permit",
+  "required_payload_fields": [
+    "project_id",
+    "permit_id",
+    "permit_type",
+    "ahj_id",
+    "risk_score",
+    "risk_band",
+    "confidence_score",
+    "model_version",
+    "scored_at"
+  ]
+}

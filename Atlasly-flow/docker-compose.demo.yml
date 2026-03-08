@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  atlasly-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atlasly-demo
+    environment:
+      ATLASLY_HOST: "0.0.0.0"
+      ATLASLY_PORT: "8080"
+      ATLASLY_DEPLOYMENT_TIER: "demo"
+      ATLASLY_STAGE05_RUNTIME_BACKEND: "sqlite"
+      ATLASLY_STAGE05_PERSISTENCE_READY: "true"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

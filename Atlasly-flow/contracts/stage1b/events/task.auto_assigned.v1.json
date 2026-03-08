@@ -1,0 +1,12 @@
+{
+  "event_type": "task.auto_assigned",
+  "event_version": 1,
+  "aggregate_type": "task",
+  "required_payload_fields": [
+    "task_id",
+    "assignee_id",
+    "rule_id",
+    "confidence",
+    "assignment_mode"
+  ]
+}

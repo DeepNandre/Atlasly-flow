@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: Stage 0.5 Webhook Event Outcomes API
+  version: 1.0.0
+paths:
+  /webhook-events:
+    get:
+      summary: Retrieve webhook delivery outcomes
+      operationId: listWebhookEvents
+      parameters:
+        - in: query
+          name: subscription_id
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [delivered, retrying, dead_lettered, failed_non_retryable]
+        - in: query
+          name: from
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: attempt_gte
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Delivery outcomes
+        "422":
+          description: Validation error

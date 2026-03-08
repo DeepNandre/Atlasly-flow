@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlasly/contracts/stage1a/events/comment_letter.parsing_started.v1.payload.schema.json",
+  "title": "comment_letter.parsing_started.v1.payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["letter_id", "document_id", "started_at"],
+  "properties": {
+    "letter_id": {"type": "string", "format": "uuid"},
+    "document_id": {"type": "string", "format": "uuid"},
+    "started_at": {"type": "string", "format": "date-time"}
+  }
+}

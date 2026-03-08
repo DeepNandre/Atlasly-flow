@@ -1,0 +1,15 @@
+{
+  "event_type": "permit.recommendations_generated",
+  "event_version": 1,
+  "aggregate_type": "permit",
+  "required_payload_fields": [
+    "project_id",
+    "permit_id",
+    "permit_type",
+    "ahj_id",
+    "recommendations",
+    "top_risk_factors",
+    "generated_at",
+    "source_score_event_id"
+  ]
+}

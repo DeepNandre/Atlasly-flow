@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: Stage 0.5 Portfolio Dashboard API
+  version: 1.0.0
+paths:
+  /dashboard/portfolio:
+    get:
+      summary: Return latest organization KPI snapshot
+      operationId: getPortfolioDashboard
+      responses:
+        "200":
+          description: Dashboard snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [organization_id, snapshot_at, freshness_seconds, metrics]
+                properties:
+                  organization_id:
+                    type: string
+                    format: uuid
+                  snapshot_at:
+                    type: string
+                    format: date-time
+                  freshness_seconds:
+                    type: integer
+                    minimum: 0
+                  metrics:
+                    type: object
+        "404":
+          description: Snapshot not found

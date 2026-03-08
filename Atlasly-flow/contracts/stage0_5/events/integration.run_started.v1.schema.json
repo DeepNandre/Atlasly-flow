@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "integration.run_started.v1",
+  "type": "object",
+  "required": ["connector", "organization_id", "run_id", "started_at"],
+  "properties": {
+    "connector": { "type": "string" },
+    "organization_id": { "type": "string", "format": "uuid" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "started_at": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

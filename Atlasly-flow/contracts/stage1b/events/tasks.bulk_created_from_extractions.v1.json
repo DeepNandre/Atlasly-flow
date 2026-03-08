@@ -1,0 +1,12 @@
+{
+  "event_type": "tasks.bulk_created_from_extractions",
+  "event_version": 1,
+  "aggregate_type": "comment_letter",
+  "required_payload_fields": [
+    "letter_id",
+    "project_id",
+    "task_ids",
+    "created_count",
+    "existing_count"
+  ]
+}
