@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import pathlib
 import sys
 import unittest
@@ -104,6 +105,17 @@ class ControlTowerAuthzTests(unittest.TestCase):
         with self.assertRaises(SessionAuthError) as ctx:
             self.state.require_session(token=owner_token, allowed_roles=allowed)
         self.assertEqual(ctx.exception.status, 403)
+
+    def test_bootstrap_rotates_expired_owner_session(self):
+        owner_token = self._token_for_role("owner")
+        self.state.sessions_by_token[owner_token]["expires_at"] = (
+            datetime.now(timezone.utc) - timedelta(hours=1)
+        ).isoformat()
+        payload = self.state.bootstrap()
+        new_token = payload["session"]["token"]
+        self.assertNotEqual(new_token, owner_token)
+        self.assertIn(new_token, self.state.sessions_by_token)
+        self.assertNotIn(owner_token, self.state.sessions_by_token)
 
     def test_enterprise_boundary_rejects_in_memory_on_mvp(self):
         self.state.deployment_tier = "mvp"

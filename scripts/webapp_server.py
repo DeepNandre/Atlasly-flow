@@ -125,6 +125,21 @@ def _iso(ts: datetime | None = None) -> str:
     return value.astimezone(timezone.utc).isoformat()
 
 
+def _is_expired_session(session: dict | None, *, now: datetime | None = None) -> bool:
+    if not session:
+        return True
+    if not bool(session.get("is_active", True)):
+        return True
+    expires_at = str(session.get("expires_at") or "").strip()
+    if not expires_at:
+        return False
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError:
+        return True
+    return (now or datetime.now(timezone.utc)) >= expiry
+
+
 @dataclass
 class DemoIds:
     organization_id: str
@@ -751,8 +766,10 @@ class DemoAppState:
         existing_token = self.session_token_by_role.get(role)
         if existing_token:
             existing = self.sessions_by_token.get(existing_token)
-            if existing and existing.get("organization_id") == self.ids.organization_id:
+            if existing and existing.get("organization_id") == self.ids.organization_id and not _is_expired_session(existing, now=ts):
                 return existing
+            self.sessions_by_token.pop(existing_token, None)
+            self.session_token_by_role.pop(role, None)
         token = uuid.uuid4().hex + uuid.uuid4().hex
         session = {
             "session_id": str(uuid.uuid4()),
@@ -778,6 +795,17 @@ class DemoAppState:
         self._issue_session(role="subcontractor", user_id=self.ids.subcontractor_user_id, now=now)
 
     def _session_payload(self) -> dict:
+        now = datetime.now(timezone.utc)
+        expired_tokens = [
+            token
+            for token, session in self.sessions_by_token.items()
+            if _is_expired_session(session, now=now)
+        ]
+        for token in expired_tokens:
+            role = str((self.sessions_by_token.get(token) or {}).get("role") or "")
+            self.sessions_by_token.pop(token, None)
+            if role:
+                self.session_token_by_role.pop(role, None)
         owner_token = self.session_token_by_role.get("owner")
         owner_session = self.sessions_by_token.get(owner_token or "")
         sessions = sorted(self.sessions_by_token.values(), key=lambda row: str(row.get("role", "")))
@@ -939,7 +967,7 @@ class DemoAppState:
         if not session or not session.get("is_active"):
             raise SessionAuthError(401, "unauthorized", "invalid session token")
         expires_at = str(session.get("expires_at", ""))
-        if expires_at and datetime.now(timezone.utc) >= datetime.fromisoformat(expires_at.replace("Z", "+00:00")):
+        if _is_expired_session(session):
             raise SessionAuthError(401, "unauthorized", "session expired")
         if self.ids and session.get("organization_id") != self.ids.organization_id:
             raise SessionAuthError(403, "forbidden", "session organization mismatch")
