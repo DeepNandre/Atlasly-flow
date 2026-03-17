@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle, Plug, RefreshCw, ShieldAlert, XCircle } from 'lucide-react'
+import { CheckCircle, Plug, RefreshCw, ShieldAlert, Workflow, XCircle } from 'lucide-react'
 import {
   useConnectorCredentials,
   useConnectorSync,
@@ -9,9 +9,12 @@ import {
   usePermitBindings,
   usePermits,
   usePollLiveConnector,
+  useReadiness,
   useRotateCredentials,
   useSlo,
   useSummary,
+  useRuntimeDiagnostics,
+  useValidateConnector,
 } from '@/hooks/useApi'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -45,10 +48,13 @@ export default function IntegrationsPage() {
   }>(null)
 
   const readinessQuery = useIntegrationsReadiness()
+  const runtimeReadiness = useReadiness()
+  const runtimeDiagnostics = useRuntimeDiagnostics()
   const slo = useSlo()
   const launchReadiness = useLaunchReadiness()
   const connectorSync = useConnectorSync()
   const livePoll = usePollLiveConnector()
+  const validateConnector = useValidateConnector()
   const rotateCredentials = useRotateCredentials()
   const allCredentials = useConnectorCredentials()
   const permitsQuery = usePermits()
@@ -99,7 +105,48 @@ export default function IntegrationsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-atlasly-ink">Integrations</h1>
-        <p className="text-sm text-atlasly-muted mt-0.5">Connector readiness, credential references, and operational launch checks</p>
+        <p className="text-sm text-atlasly-muted mt-0.5">Connector readiness, credential references, and buyer-safe launch checks</p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Hosted Runtime</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {runtimeReadiness.isLoading ? <SkeletonCard /> : (
+              <>
+                <div className="grid gap-2 text-sm md:grid-cols-2">
+                  <div className="rounded-md border border-atlasly-line px-3 py-2">
+                    <p className="text-atlasly-muted">Tier</p>
+                    <p className="font-medium text-atlasly-ink">{String((runtimeDiagnostics.data as { runtime?: { deployment_tier?: string } } | undefined)?.runtime?.deployment_tier ?? 'unknown')}</p>
+                  </div>
+                  <div className="rounded-md border border-atlasly-line px-3 py-2">
+                    <p className="text-atlasly-muted">Backend</p>
+                    <p className="font-medium text-atlasly-ink">{String((runtimeDiagnostics.data as { runtime?: { runtime_backend?: string } } | undefined)?.runtime?.runtime_backend ?? 'unknown')}</p>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs text-atlasly-muted">
+                  {((runtimeReadiness.data as { checks?: Array<{ id?: string; status?: string; detail?: string }> } | undefined)?.checks ?? []).map((check) => (
+                    <div key={String(check.id)} className="flex items-center justify-between gap-3 rounded-md border border-atlasly-line px-3 py-2">
+                      <span>{String(check.id)}</span>
+                      <span className={String(check.status) === 'pass' ? 'text-atlasly-ok' : 'text-atlasly-rust'}>
+                        {String(check.status)} {check.detail ? `· ${String(check.detail)}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Why buyers care</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm text-atlasly-muted">
+            <p>Credential readiness proves Atlasly can move beyond PDF parsing into a live permit control tower.</p>
+            <p>Permit bindings make the city-facing record auditable instead of hidden in a portal login.</p>
+            <p>Validation gives operators an explicit pass/fail answer before they trust live syncs in a pilot.</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -149,10 +196,13 @@ export default function IntegrationsPage() {
                 {connector.credentials.length === 0 ? (
                   <p className="text-xs text-atlasly-muted">No credential references stored yet.</p>
                 ) : connector.credentials.map((row) => (
-                  <div key={String(row.id)} className="rounded-md border border-atlasly-line px-3 py-2 text-xs">
-                    <div className="font-mono text-atlasly-ink">{String(row.credential_ref ?? '—')}</div>
-                    <div className="text-atlasly-muted mt-1">Updated {formatDate(String(row.updated_at ?? row.created_at ?? ''))}</div>
-                  </div>
+                    <div key={String(row.id)} className="rounded-md border border-atlasly-line px-3 py-2 text-xs">
+                      <div className="font-mono text-atlasly-ink">{String(row.credential_ref ?? '—')}</div>
+                      <div className="text-atlasly-muted mt-1">
+                        Updated {formatDate(String(row.updated_at ?? row.created_at ?? ''))}
+                        {row.last_validated_at ? ` · Validated ${formatDate(String(row.last_validated_at))}` : ' · Not validated yet'}
+                      </div>
+                    </div>
                 ))}
               </div>
 
@@ -207,10 +257,10 @@ export default function IntegrationsPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Live Connector Poll</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Connector Validation</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-atlasly-muted">
-            Validate the hosted live permit path using a saved credential ref and a mapped external permit id.
+            Validate the saved connector credential before running a live poll. This checks token shape, app id setup, and whether the connector returns records.
           </p>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1.5">
@@ -242,6 +292,30 @@ export default function IntegrationsPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                validateConnector.mutate(
+                  { connector: rotateTarget, ahj_id: bindingAhjId, credential_ref: credentialRef || undefined },
+                  {
+                    onSuccess: (payload) => {
+                      const result = payload as { validation_status?: string; observations_count?: number; operator_message?: string }
+                      setLivePollOutput({
+                        status: result.validation_status,
+                        observationsProcessed: result.observations_count,
+                        observationsApplied: undefined,
+                        observationsReviewed: undefined,
+                        unmappedObservations: undefined,
+                        operatorMessages: result.operator_message ? [result.operator_message] : [],
+                      })
+                    },
+                  },
+                )
+              }}
+              disabled={!bindingAhjId.trim() || validateConnector.isPending}
+            >
+              {validateConnector.isPending ? 'Validating…' : 'Validate Connector'}
+            </Button>
             <Button
               onClick={() => {
                 livePoll.mutate(
@@ -278,7 +352,7 @@ export default function IntegrationsPage() {
             >
               {livePoll.isPending ? 'Running…' : 'Run Live Poll'}
             </Button>
-            <p className="text-xs text-atlasly-muted">Use an OAuth token-backed secret env, not the Accela app secret.</p>
+            <p className="text-xs text-atlasly-muted">Use an OAuth token-backed secret env, not the Accela app secret. Shovels is optional enrichment.</p>
           </div>
           {livePollOutput ? (
             <div className="rounded-md border border-atlasly-line px-4 py-3 text-sm">
@@ -305,7 +379,7 @@ export default function IntegrationsPage() {
         <CardHeader><CardTitle>External Permit Bindings</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-atlasly-muted">
-            Map an Atlasly permit to the external Accela/OpenGov record before running live polling.
+            Map an Atlasly permit to the external Accela/OpenGov record before running live polling. This is the operator-owned bridge between Atlasly and the city system.
           </p>
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1.5">
@@ -368,7 +442,13 @@ export default function IntegrationsPage() {
               (((permitBindings.data as { items?: Array<Record<string, unknown>> } | undefined)?.items) ?? []).map((row) => (
                 <div key={String(row.id)} className="rounded-md border border-atlasly-line px-3 py-2 text-xs">
                   <div className="font-medium text-atlasly-ink">{String(row.permit_id)} {'->'} {String(row.external_permit_id)}</div>
-                  <div className="text-atlasly-muted mt-1">{String(row.connector)} / {String(row.ahj_id)}</div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-atlasly-muted">
+                    <span>{String(row.connector)} / {String(row.ahj_id)}</span>
+                    <span className="inline-flex items-center gap-1 text-atlasly-teal">
+                      <Workflow className="h-3.5 w-3.5" />
+                      Bound
+                    </span>
+                  </div>
                 </div>
               ))
             )}

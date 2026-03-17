@@ -44,7 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    let recovering = false
+
+    const bootstrapSession = async () => {
       try {
         const boot = await bootstrap()
         if (cancelled) return
@@ -64,9 +66,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setState((prev) => ({ ...prev, ready: true }))
         }
       }
-    })()
+    }
+
+    const handleAuthExpired = () => {
+      if (recovering || cancelled) return
+      recovering = true
+      void bootstrapSession().finally(() => {
+        recovering = false
+      })
+    }
+
+    void bootstrapSession()
+    window.addEventListener('atlasly:auth-expired', handleAuthExpired)
     return () => {
       cancelled = true
+      window.removeEventListener('atlasly:auth-expired', handleAuthExpired)
     }
   }, [])
 

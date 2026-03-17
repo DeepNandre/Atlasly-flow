@@ -109,6 +109,8 @@ export default function PermitDetailPage() {
                 ['Project', String(permit?.project_name ?? '—')],
                 ['Permit Type', String(permit?.permit_type ?? '—').replace(/_/g, ' ')],
                 ['Normalized Status', String(permit?.status ?? '—')],
+                ['Binding Status', String(permit?.binding_status ?? 'unmapped')],
+                ['External Permit', String((permit?.binding as Record<string, unknown> | undefined)?.external_permit_id ?? '—')],
                 ['Source Status', String(permit?.source_status ?? '—')],
                 ['Last Sync', String(permit?.last_sync_at ?? permit?.updated_at ?? '—')],
               ].map(([label, value]) => (

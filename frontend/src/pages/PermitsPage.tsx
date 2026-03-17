@@ -96,6 +96,7 @@ export default function PermitsPage() {
                     <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Project</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Type</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Status</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Binding</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Source Status</th>
                     <th className="text-left px-5 py-3 text-xs font-semibold text-atlasly-muted uppercase tracking-wide">Updated</th>
                   </tr>
@@ -113,6 +114,7 @@ export default function PermitsPage() {
                         <td className="px-5 py-3 font-medium text-atlasly-ink">{String(record.project_name ?? '—')}</td>
                         <td className="px-5 py-3 text-atlasly-muted">{String(record.permit_type ?? '').replace(/_/g, ' ') || '—'}</td>
                         <td className="px-5 py-3"><PermitStatusBadge status={String(record.status ?? 'draft')} /></td>
+                        <td className="px-5 py-3 text-atlasly-muted">{String(record.binding_status ?? 'unmapped')}</td>
                         <td className="px-5 py-3 text-atlasly-muted">{String(record.source_status ?? '—')}</td>
                         <td className="px-5 py-3 text-atlasly-muted">{formatDate(String(record.updated_at ?? record.last_sync_at ?? ''))}</td>
                       </tr>

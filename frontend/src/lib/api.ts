@@ -24,6 +24,15 @@ export interface SessionRecord {
 export interface RuntimeInfo {
   deployment_tier?: string
   demo_routes_enabled?: boolean
+  runtime_backend?: string
+  persistence_ready?: boolean
+  warnings?: string[]
+}
+
+declare global {
+  interface WindowEventMap {
+    'atlasly:auth-expired': CustomEvent<{ status: number; code?: string; path: string }>
+  }
 }
 
 function getToken(): string | null {
@@ -67,7 +76,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
   if (!res.ok) {
-    throw await parseError(res)
+    const err = await parseError(res)
+    if (typeof window !== 'undefined' && err.status === 401) {
+      window.dispatchEvent(new CustomEvent('atlasly:auth-expired', {
+        detail: { status: err.status, code: err.code, path },
+      }))
+    }
+    throw err
   }
 
   const contentType = res.headers.get('content-type') ?? ''
@@ -87,11 +102,11 @@ export const api = {
 }
 
 export async function bootstrap(): Promise<{ token: string; sessions: SessionRecord[]; runtime?: RuntimeInfo }> {
-  const data = await api.post<{ session?: SessionRecord; sessions?: SessionRecord[]; token?: string }>('/api/bootstrap', {
+  const data = await api.post<{ session?: SessionRecord; sessions?: SessionRecord[]; token?: string; runtime?: RuntimeInfo }>('/api/bootstrap', {
     org_name: 'My Organization',
     user_name: 'owner',
     email: 'owner@atlasly.app',
-  }) as { session?: SessionRecord; sessions?: SessionRecord[]; token?: string; runtime?: RuntimeInfo }
+  })
   const token = data?.session?.token ?? (data as Record<string, string>)?.token ?? ''
   if (token) setToken(token)
   return { token, sessions: data.sessions ?? [], runtime: data.runtime }

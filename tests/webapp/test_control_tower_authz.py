@@ -47,6 +47,10 @@ class ControlTowerAuthzTests(unittest.TestCase):
         allowed = self.state.allowed_roles_for_route(method="POST", path="/api/demo/reset")
         self.assertIsNone(allowed)
 
+    def test_demo_start_is_unprotected_route(self):
+        allowed = self.state.allowed_roles_for_route(method="POST", path="/api/demo/start")
+        self.assertIsNone(allowed)
+
     def test_demo_routes_are_blocked_in_mvp_tier(self):
         self.state.deployment_tier = "mvp"
         self.state.demo_routes_enabled = False
@@ -79,6 +83,13 @@ class ControlTowerAuthzTests(unittest.TestCase):
     def test_reviewer_can_access_enterprise_launch_readiness(self):
         reviewer_token = self._token_for_role("reviewer")
         allowed = self.state.allowed_roles_for_route(method="GET", path="/api/enterprise/launch-readiness")
+        self.assertEqual(allowed, {"owner", "admin", "pm", "reviewer"})
+        session = self.state.require_session(token=reviewer_token, allowed_roles=allowed)
+        self.assertEqual(session["role"], "reviewer")
+
+    def test_reviewer_can_access_runtime_diagnostics(self):
+        reviewer_token = self._token_for_role("reviewer")
+        allowed = self.state.allowed_roles_for_route(method="GET", path="/api/runtime-diagnostics")
         self.assertEqual(allowed, {"owner", "admin", "pm", "reviewer"})
         session = self.state.require_session(token=reviewer_token, allowed_roles=allowed)
         self.assertEqual(session["role"], "reviewer")

@@ -37,6 +37,34 @@ export function useSummary() {
   })
 }
 
+export function useReadiness() {
+  return useQuery({
+    queryKey: ['readiness'],
+    queryFn: () => api.get('/api/readiness'),
+    retry: 1,
+  })
+}
+
+export function useRuntimeDiagnostics() {
+  return useQuery({
+    queryKey: ['runtime-diagnostics'],
+    queryFn: () => api.get('/api/runtime-diagnostics'),
+    retry: 1,
+  })
+}
+
+export function useStartDemoWorkspace() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post('/api/demo/start', {}),
+    onSuccess: () => {
+      qc.invalidateQueries()
+      toast.success('Guided demo workspace is ready')
+    },
+    onError: (error: unknown) => toastError('Could not start demo', error),
+  })
+}
+
 export function useCommentLetters() {
   return useQuery({
     queryKey: ['letters'],
@@ -370,6 +398,21 @@ export function useRotateCredentials() {
       toast.success('Credential reference rotated')
     },
     onError: (error: unknown) => toastError('Rotation failed', error),
+  })
+}
+
+export function useValidateConnector() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { connector: string; ahj_id: string; credential_ref?: string }) =>
+      api.post('/api/stage2/connector-validate', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations-readiness'] })
+      qc.invalidateQueries({ queryKey: ['launch-readiness'] })
+      qc.invalidateQueries({ queryKey: ['connector-credentials'] })
+      toast.success('Connector validation complete')
+    },
+    onError: (error: unknown) => toastError('Connector validation failed', error),
   })
 }
 

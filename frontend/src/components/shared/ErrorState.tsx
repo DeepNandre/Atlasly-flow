@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button'
 
 interface ErrorStateProps {
   message?: string
+  detail?: string
   onRetry?: () => void
 }
 
-export function ErrorState({ message = 'Something went wrong', onRetry }: ErrorStateProps) {
+export function ErrorState({ message = 'Something went wrong', detail = 'The request failed. Retry or check the runtime diagnostics.', onRetry }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
       <div className="rounded-full bg-atlasly-bad/10 p-4">
@@ -14,7 +15,7 @@ export function ErrorState({ message = 'Something went wrong', onRetry }: ErrorS
       </div>
       <div>
         <p className="font-medium text-atlasly-ink">{message}</p>
-        <p className="text-sm text-atlasly-muted mt-1">Check your connection and try again</p>
+        <p className="text-sm text-atlasly-muted mt-1">{detail}</p>
       </div>
       {onRetry && (
         <Button variant="outline" size="sm" onClick={onRetry}>

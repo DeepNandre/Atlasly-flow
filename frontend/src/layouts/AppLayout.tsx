@@ -57,7 +57,8 @@ export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [roleSwitching, setRoleSwitching] = useState(false)
-  const isDemo = Boolean(runtime?.demo_routes_enabled)
+  const isDemo = Boolean(runtime?.demo_routes_enabled) && runtime?.deployment_tier === 'dev'
+  const runtimeWarnings = runtime?.warnings ?? []
 
   if (!ready) {
     return (
@@ -187,6 +188,16 @@ export function AppLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 md:p-8 pb-24">
+          {runtimeWarnings.length > 0 ? (
+            <div className="mb-6 rounded-lg border border-atlasly-warn/40 bg-atlasly-warn/10 px-4 py-3 text-sm text-atlasly-ink">
+              <p className="font-medium">Runtime warnings</p>
+              <div className="mt-1 space-y-1 text-xs text-atlasly-muted">
+                {runtimeWarnings.map((warning) => (
+                  <p key={warning}>• {warning}</p>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useApiKeys, useAuditExport, useCreateApiKey, useCreateWebhook, useTaskTemplates, useWebhooks } from '@/hooks/useApi'
+import { useApiKeys, useAuditExport, useCreateApiKey, useCreateWebhook, useRuntimeDiagnostics, useTaskTemplates, useWebhooks } from '@/hooks/useApi'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { SkeletonTable } from '@/components/shared/Skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const createApiKey = useCreateApiKey()
   const auditExport = useAuditExport()
   const taskTemplates = useTaskTemplates()
+  const runtimeDiagnostics = useRuntimeDiagnostics()
 
   const [webhookUrl, setWebhookUrl] = useState('')
   const [keyName, setKeyName] = useState('')
@@ -34,6 +35,30 @@ export default function SettingsPage() {
         <h1 className="text-xl font-bold text-atlasly-ink">Settings</h1>
         <p className="text-sm text-atlasly-muted mt-0.5">Manage enterprise webhooks, API keys, templates, and audit exports</p>
       </div>
+
+      {((runtimeDiagnostics.data as { readiness?: { warnings?: string[]; blockers?: string[] } } | undefined)?.readiness) ? (
+        <Card>
+          <CardHeader><CardTitle>Runtime Warnings</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm text-atlasly-muted">
+            {(((runtimeDiagnostics.data as { readiness?: { blockers?: string[] } }).readiness?.blockers) ?? []).length > 0 ? (
+              <div className="rounded-md border border-atlasly-rust/30 bg-atlasly-rust/5 px-3 py-2 text-atlasly-ink">
+                {((runtimeDiagnostics.data as { readiness?: { blockers?: string[] } }).readiness?.blockers ?? []).map((blocker) => (
+                  <p key={blocker}>Blocker: {blocker}</p>
+                ))}
+              </div>
+            ) : null}
+            {(((runtimeDiagnostics.data as { readiness?: { warnings?: string[] } }).readiness?.warnings) ?? []).length > 0 ? (
+              <div className="rounded-md border border-atlasly-warn/30 bg-atlasly-warn/10 px-3 py-2 text-atlasly-ink">
+                {((runtimeDiagnostics.data as { readiness?: { warnings?: string[] } }).readiness?.warnings ?? []).map((warning) => (
+                  <p key={warning}>Warning: {warning}</p>
+                ))}
+              </div>
+            ) : (
+              <p>No runtime warnings. Hosted settings are in a clean state.</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Tabs defaultValue="webhooks">
         <TabsList>

@@ -80,6 +80,28 @@ paths:
                         type: string
                       demo_routes_enabled:
                         type: boolean
+                      runtime_backend:
+                        type: string
+                      persistence_ready:
+                        type: boolean
+  /api/readiness:
+    get:
+      summary: Hosted runtime readiness checks
+      responses:
+        "200":
+          description: Runtime readiness payload
+  /api/runtime-diagnostics:
+    get:
+      summary: Hosted runtime diagnostics and launch metadata
+      responses:
+        "200":
+          description: Runtime diagnostics payload
+  /api/demo/start:
+    post:
+      summary: Seed a hosted-safe guided demo workspace
+      responses:
+        "200":
+          description: Guided demo seeded
   /api/demo/reset:
     post:
       summary: Reset demo state and optionally bootstrap a fresh workspace
@@ -894,6 +916,25 @@ paths:
       responses:
         "200":
           description: Permit binding updated
+  /api/stage2/connector-validate:
+    post:
+      summary: Validate a live connector credential and return operator guidance
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connector:
+                  type: string
+                ahj_id:
+                  type: string
+                credential_ref:
+                  type: string
+      responses:
+        "200":
+          description: Connector validation payload
   /api/stage3/payout:
     post:
       summary: Create payout instruction from control tower finance ops panel

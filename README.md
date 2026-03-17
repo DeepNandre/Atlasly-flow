@@ -33,6 +33,11 @@
 - Set `ATLASLY_DATA_DIR=/data` when using a mounted volume for persistent hosted state.
 - `ATLASLY_STAGE05_RUNTIME_BACKEND=sqlite` and `ATLASLY_STAGE05_PERSISTENCE_READY=true` are required for pilot-safe mode.
 - Demo-only routes (`/api/demo/reset`, `/api/demo/run-scenario`) are disabled automatically outside demo tier.
+- Hosted diagnostics now live at:
+  - `GET /api/readiness`
+  - `GET /api/runtime-diagnostics`
+  - `POST /api/demo/start`
+  - `POST /api/stage2/connector-validate`
 - Live Accela polling requires:
   - `ATLASLY_ACCELA_APP_ID`
   - `ATLASLY_CONNECTOR_SECRET_<REF>` containing an OAuth access token, not the app secret
@@ -40,6 +45,7 @@
 - The browser Integrations page now exposes:
   - credential ref updates
   - external permit binding creation
+  - connector validation
   - live connector poll operator output
 
 ## Frontend

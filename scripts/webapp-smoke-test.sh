@@ -19,7 +19,7 @@ trap cleanup EXIT
 ATLASLY_HOST="${HOST}" ATLASLY_PORT="${PORT}" PYTHONUNBUFFERED=1 python3 scripts/webapp_server.py >"${LOG_FILE}" 2>&1 &
 SERVER_PID=$!
 
-for _ in $(seq 1 60); do
+for _ in $(seq 1 120); do
   if curl -sSf "${BASE_URL}/api/health" >/dev/null 2>&1; then
     break
   fi
@@ -27,6 +27,7 @@ for _ in $(seq 1 60); do
 done
 
 curl -sSf "${BASE_URL}/api/health" >/dev/null
+curl -sSf "${BASE_URL}/api/readiness" >/dev/null
 
 post_json() {
   local path="$1"
@@ -52,6 +53,10 @@ fi
 
 sessions_resp="$(get_json "/api/sessions")"
 python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("bootstrapped") is True; assert len(d.get("sessions", [])) >= 5' <<<"${sessions_resp}"
+runtime_diag_resp="$(get_json "/api/runtime-diagnostics")"
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert "runtime" in d; assert "readiness" in d; assert "session_health" in d' <<<"${runtime_diag_resp}"
+demo_start_resp="$(curl -sSf -X POST "${BASE_URL}/api/demo/start" -H "Content-Type: application/json" -d '{}')"
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("seeded") is True' <<<"${demo_start_resp}"
 feedback_resp="$(post_json "/api/feedback" '{"message":"smoke feedback","rating":5,"category":"smoke"}')"
 python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("id") and d.get("rating")==5' <<<"${feedback_resp}"
 telemetry_post_resp="$(post_json "/api/telemetry" '{"event_type":"smoke.test","level":"info","payload":{"phase":"start"}}')"
@@ -153,6 +158,22 @@ python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("credential", 
 
 stage2_credentials_list_resp="$(get_json "/api/stage2/connector-credentials?connector=accela_api")"
 python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("count", 0) >= 1' <<<"${stage2_credentials_list_resp}"
+stage2_validate_body_file="$(mktemp)"
+stage2_validate_code="$(
+  curl -s -o "${stage2_validate_body_file}" -w '%{http_code}' \
+    -X POST "${BASE_URL}/api/stage2/connector-validate" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -d '{"connector":"accela_api","ahj_id":"ca.san_jose.building","credential_ref":"smoke_live"}'
+)"
+if [[ "${stage2_validate_code}" != "200" && "${stage2_validate_code}" != "400" && "${stage2_validate_code}" != "502" ]]; then
+  echo "Unexpected connector validate status: ${stage2_validate_code}"
+  cat "${stage2_validate_body_file}"
+  rm -f "${stage2_validate_body_file}"
+  exit 1
+fi
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("validation_status") in {"failed","warning","validated"}; assert d.get("operator_message")' <"${stage2_validate_body_file}"
+rm -f "${stage2_validate_body_file}"
 
 stage1_parse_resp="$(post_json "/api/stage1a/parse" '{"text":"Revise panel schedule per NEC 408.4.\nProvide duct sizing report per IMC 603.2."}')"
 python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("letter_id"); assert len(d.get("extractions", [])) >= 1' <<<"${stage1_parse_resp}"

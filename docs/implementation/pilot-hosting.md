@@ -15,15 +15,20 @@
 ## Runtime behavior
 - Demo routes are disabled outside demo tier.
 - `/api/bootstrap` seeds a single pilot workspace if no persisted workspace exists.
+- `/api/readiness` exposes deploy-time readiness checks for Railway triage.
+- `/api/runtime-diagnostics` exposes runtime state, session health, and launch blockers.
+- `/api/demo/start` seeds a hosted-safe guided demo story.
 - Runtime state, Stage 2, and Stage 3 data persist under `ATLASLY_DATA_DIR`.
 
 ## Accela live path
 1. Save connector credential ref with `/api/stage2/connector-credentials/rotate`.
-2. Create an internal-to-external permit binding with `/api/stage2/permit-bindings`.
-3. Run `/api/stage2/poll-live`.
-4. Inspect `operator_messages` in the response for invalid token, missing app id, unmapped record, or no observations.
-5. In the browser, use the Integrations page:
+2. Validate the connector with `/api/stage2/connector-validate`.
+3. Create an internal-to-external permit binding with `/api/stage2/permit-bindings`.
+4. Run `/api/stage2/poll-live`.
+5. Inspect `operator_messages` in the response for invalid token, missing app id, unmapped record, or no observations.
+6. In the browser, use the Integrations page:
    - `Update Credential Ref`
+   - `Validate Connector`
    - `External Permit Bindings`
    - `Live Connector Poll`
 

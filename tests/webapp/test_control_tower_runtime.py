@@ -93,6 +93,7 @@ class ControlTowerRuntimeTests(unittest.TestCase):
         self.assertIn("stage2", readiness)
         self.assertIn("stage3", readiness)
         self.assertFalse(readiness["overall_ready"])
+        self.assertTrue(readiness["stage2"]["shovels_optional"])
 
     def test_integration_readiness_does_not_block_on_stripe_when_disabled(self):
         previous_key = os.environ.pop("ATLASLY_STRIPE_SECRET_KEY", None)
@@ -116,6 +117,35 @@ class ControlTowerRuntimeTests(unittest.TestCase):
         self.assertIn("checklist", readiness)
         self.assertIn("blockers", readiness)
         self.assertGreaterEqual(len(readiness["checklist"]), 1)
+
+    def test_runtime_diagnostics_include_readiness_and_session_health(self):
+        diagnostics = self.state.runtime_diagnostics()
+        self.assertIn("runtime", diagnostics)
+        self.assertIn("readiness", diagnostics)
+        self.assertIn("session_health", diagnostics)
+        self.assertIn("summary", diagnostics)
+
+    def test_demo_start_seeds_comment_letter_tasks_and_binding(self):
+        payload = self.state._seed_demo_story()
+        self.assertTrue(payload["seeded"])
+        self.assertTrue(self.state.last_letter_id)
+        self.assertGreater(len(self.state.stage1b_repo.load_ticket_store().tasks_by_id), 0)
+        bindings = self.state.stage2_repo.list_external_permit_bindings(
+            organization_id=self.state.ids.organization_id,
+            permit_id=self.state.ids.permit_id,
+            limit=10,
+        )
+        self.assertGreaterEqual(len(bindings), 1)
+
+    def test_connector_validation_fails_cleanly_without_saved_credential(self):
+        status, payload = self.state.validate_connector(
+            connector="accela_api",
+            ahj_id="ca.san_jose.building",
+            credential_ref="missing_ref",
+        )
+        self.assertEqual(int(status), 200)
+        self.assertEqual(payload["validation_status"], "failed")
+        self.assertIn("operator_message", payload)
 
     def test_stage1a_upload_ingestion_and_quality_report(self):
         assert self.state.ids is not None

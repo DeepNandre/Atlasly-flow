@@ -28,7 +28,7 @@ start_server() {
   PYTHONUNBUFFERED=1 \
   python3 scripts/webapp_server.py >"${LOG_FILE}" 2>&1 &
   SERVER_PID=$!
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 120); do
     if curl -sSf "${BASE_URL}/api/health" >/dev/null 2>&1; then
       return 0
     fi
