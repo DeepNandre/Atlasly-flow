@@ -1,0 +1,2080 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlasly Flow Demo</title>
+    <style>
+      :root {
+        --bg: #08111f;
+        --bg-elevated: #0f172a;
+        --bg-panel: rgba(15, 23, 42, 0.82);
+        --card: #ffffff;
+        --card-muted: #f8fafc;
+        --border: rgba(148, 163, 184, 0.18);
+        --border-strong: rgba(148, 163, 184, 0.28);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --ink: #0f172a;
+        --teal: #14b8a6;
+        --teal-strong: #0f766e;
+        --blue: #38bdf8;
+        --red: #ef4444;
+        --amber: #f59e0b;
+        --green: #22c55e;
+        --cyan: #06b6d4;
+        --shadow: 0 24px 48px rgba(2, 8, 23, 0.28);
+        --radius: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: Inter, "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 22%),
+          linear-gradient(180deg, #07101d 0%, #0b1220 48%, #0a1422 100%);
+      }
+
+      body {
+        padding: 18px;
+      }
+
+      .app-shell {
+        min-height: calc(100vh - 36px);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(8, 17, 31, 0.9);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 88px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(8, 17, 31, 0.84));
+        border-right: 1px solid rgba(148, 163, 184, 0.14);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 22px 14px;
+      }
+
+      .sidebar-badge,
+      .sidebar-item {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+      }
+
+      .sidebar-badge {
+        background: linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(56, 189, 248, 0.18));
+        color: white;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .sidebar-item {
+        color: var(--muted);
+        border: 1px solid transparent;
+        background: rgba(15, 23, 42, 0.2);
+        cursor: pointer;
+        transition: 180ms ease;
+      }
+
+      .sidebar-item:hover,
+      .sidebar-item.active {
+        color: #fff;
+        background: rgba(15, 118, 110, 0.22);
+        border-color: rgba(20, 184, 166, 0.22);
+        transform: translateY(-1px);
+      }
+
+      .main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 24px 28px 18px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.24));
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, rgba(20, 184, 166, 0.18), rgba(56, 189, 248, 0.16));
+        border: 1px solid rgba(56, 189, 248, 0.18);
+      }
+
+      .flow-lines {
+        position: relative;
+        width: 18px;
+        height: 18px;
+      }
+
+      .flow-lines::before,
+      .flow-lines::after,
+      .flow-lines span {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--teal), var(--blue));
+      }
+
+      .flow-lines::before { top: 2px; width: 100%; }
+      .flow-lines span { top: 8px; width: 78%; }
+      .flow-lines::after { top: 14px; width: 56%; }
+
+      .brand-copy h1 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .brand-copy p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .tab {
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        cursor: pointer;
+        transition: 180ms ease;
+      }
+
+      .tab:hover,
+      .tab.active {
+        color: #fff;
+        background: rgba(15, 118, 110, 0.2);
+        border-color: rgba(20, 184, 166, 0.22);
+      }
+
+      .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .ghost-chip,
+      .button,
+      .button-secondary,
+      .button-link {
+        border-radius: 14px;
+        border: 1px solid transparent;
+        font: inherit;
+        transition: 180ms ease;
+      }
+
+      .ghost-chip {
+        background: rgba(148, 163, 184, 0.08);
+        color: var(--muted);
+        padding: 10px 14px;
+      }
+
+      .button,
+      .button-secondary,
+      .button-link {
+        cursor: pointer;
+      }
+
+      .button {
+        background: linear-gradient(135deg, var(--teal), var(--blue));
+        color: #fff;
+        padding: 11px 16px;
+        box-shadow: 0 14px 30px rgba(20, 184, 166, 0.2);
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.04);
+      }
+
+      .button-secondary {
+        background: #fff;
+        color: var(--ink);
+        border-color: rgba(15, 23, 42, 0.08);
+        padding: 10px 14px;
+      }
+
+      .button-link {
+        background: transparent;
+        color: var(--teal);
+        padding: 0;
+      }
+
+      .content {
+        padding: 28px;
+        min-width: 0;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .panel,
+      .card,
+      .metric,
+      .modal-card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--bg-panel);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-primary {
+        padding: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-primary::after {
+        content: "";
+        position: absolute;
+        right: -80px;
+        top: -60px;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(20, 184, 166, 0.12), transparent 62%);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #cbd5e1;
+        font-size: 0.8rem;
+        background: rgba(15, 118, 110, 0.16);
+        border: 1px solid rgba(20, 184, 166, 0.18);
+        padding: 8px 12px;
+        border-radius: 999px;
+      }
+
+      .hero h2 {
+        font-size: clamp(1.9rem, 4vw, 2.85rem);
+        line-height: 1.05;
+        margin: 18px 0 12px;
+        max-width: 11ch;
+      }
+
+      .hero p {
+        color: #cbd5e1;
+        max-width: 62ch;
+        margin: 0 0 18px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .hero-mini {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(8, 17, 31, 0.4);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .hero-mini strong {
+        display: block;
+        font-size: 1.2rem;
+        margin-bottom: 6px;
+        color: white;
+      }
+
+      .hero-mini span {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .hero-side {
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .hero-side h3,
+      .section-title h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .hero-side p,
+      .section-title p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+
+      .metric {
+        padding: 18px 20px;
+      }
+
+      .metric .label {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 1.9rem;
+        margin-top: 12px;
+        color: #fff;
+      }
+
+      .metric .delta {
+        color: #cbd5e1;
+        font-size: 0.84rem;
+        margin-top: 8px;
+      }
+
+      .layout-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.95fr);
+        gap: 18px;
+      }
+
+      .card {
+        padding: 22px;
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .badge,
+      .status-pill,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .badge {
+        background: rgba(255, 255, 255, 0.08);
+        color: #dbe4ef;
+      }
+
+      .chip {
+        background: rgba(148, 163, 184, 0.12);
+        color: #dbe4ef;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+
+      .chip.active {
+        background: rgba(20, 184, 166, 0.18);
+        border-color: rgba(20, 184, 166, 0.22);
+      }
+
+      .status-blocked { background: rgba(239, 68, 68, 0.16); color: #fecaca; }
+      .status-review { background: rgba(245, 158, 11, 0.18); color: #fde68a; }
+      .status-submitted { background: rgba(56, 189, 248, 0.16); color: #bae6fd; }
+      .status-approved { background: rgba(34, 197, 94, 0.16); color: #bbf7d0; }
+      .status-new { background: rgba(148, 163, 184, 0.16); color: #e2e8f0; }
+      .status-paid { background: rgba(34, 197, 94, 0.16); color: #bbf7d0; }
+      .status-pending { background: rgba(56, 189, 248, 0.16); color: #bae6fd; }
+      .status-disputed { background: rgba(239, 68, 68, 0.16); color: #fecaca; }
+
+      .table-wrap {
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 820px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 14px 10px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      td {
+        color: #eff6ff;
+        font-size: 0.92rem;
+      }
+
+      tbody tr {
+        cursor: pointer;
+        transition: background 180ms ease;
+      }
+
+      tbody tr:hover {
+        background: rgba(148, 163, 184, 0.06);
+      }
+
+      .case-name {
+        font-weight: 600;
+        margin-bottom: 5px;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .priority-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .priority-item {
+        border-radius: 18px;
+        padding: 16px;
+        background: rgba(8, 17, 31, 0.44);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .priority-item strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .priority-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .pipeline-step {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        background: rgba(8, 17, 31, 0.38);
+        min-height: 92px;
+      }
+
+      .pipeline-step.active {
+        border-color: rgba(20, 184, 166, 0.26);
+        background: rgba(15, 118, 110, 0.16);
+      }
+
+      .pipeline-step.complete .step-index {
+        background: linear-gradient(135deg, var(--teal), var(--blue));
+        color: #fff;
+      }
+
+      .step-index {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: rgba(148, 163, 184, 0.16);
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+      }
+
+      .step-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+
+      .banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        background: rgba(127, 29, 29, 0.34);
+        border: 1px solid rgba(239, 68, 68, 0.24);
+        color: #fee2e2;
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin-bottom: 18px;
+      }
+
+      .detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.9fr);
+        gap: 18px;
+      }
+
+      .timeline {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-left: 18px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 4px;
+        top: 4px;
+        bottom: 4px;
+        width: 2px;
+        background: rgba(148, 163, 184, 0.16);
+      }
+
+      .timeline-item {
+        position: relative;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(8, 17, 31, 0.42);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -18px;
+        top: 18px;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--teal), var(--blue));
+        box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.16);
+      }
+
+      .list-block {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .list-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(8, 17, 31, 0.42);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .list-item strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 12px;
+        min-height: 240px;
+        padding-top: 24px;
+      }
+
+      .chart-bar-wrap {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .chart-bar {
+        width: 100%;
+        border-radius: 16px 16px 6px 6px;
+        background: linear-gradient(180deg, rgba(56, 189, 248, 0.92), rgba(20, 184, 166, 0.74));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        transition: height 260ms ease;
+      }
+
+      .chart-label {
+        margin-top: 10px;
+        color: var(--muted);
+        text-align: center;
+        font-size: 0.78rem;
+      }
+
+      .chart-value {
+        text-align: center;
+        font-size: 0.78rem;
+        color: #dbeafe;
+        margin-bottom: 8px;
+      }
+
+      .breadcrumbs {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        margin-bottom: 14px;
+      }
+
+      .breadcrumbs button {
+        color: #dbeafe;
+        background: transparent;
+        border: 0;
+        font: inherit;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.68);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        z-index: 20;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .modal-card {
+        width: min(100%, 560px);
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.96);
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin: 18px 0;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .field label {
+        color: #cbd5e1;
+        font-size: 0.84rem;
+      }
+
+      .field input,
+      .field select {
+        width: 100%;
+        background: rgba(8, 17, 31, 0.76);
+        color: #eff6ff;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        padding: 12px 14px;
+        font: inherit;
+      }
+
+      .field.full {
+        grid-column: 1 / -1;
+      }
+
+      .footer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .flash {
+        animation: pulse 520ms ease;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+        100% { transform: scale(1); }
+      }
+
+      @media (max-width: 1180px) {
+        .hero,
+        .layout-grid,
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 860px) {
+        body {
+          padding: 0;
+        }
+
+        .app-shell {
+          min-height: 100vh;
+          border-radius: 0;
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          order: 2;
+          flex-direction: row;
+          justify-content: space-around;
+          padding: 12px 14px;
+          border-right: 0;
+          border-top: 1px solid rgba(148, 163, 184, 0.14);
+        }
+
+        .sidebar-badge {
+          display: none;
+        }
+
+        .topbar {
+          padding: 20px 18px 16px;
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .content {
+          padding: 18px;
+        }
+
+        .hero-grid,
+        .pipeline,
+        .field-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .metrics {
+          grid-template-columns: 1fr;
+        }
+
+        table {
+          min-width: 720px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar"></aside>
+      <div class="main">
+        <header class="topbar">
+          <div class="brand">
+            <div class="brand-mark">
+              <div class="flow-lines"><span></span></div>
+            </div>
+            <div class="brand-copy">
+              <h1>Atlasly Flow</h1>
+              <p>Permit operations control tower</p>
+            </div>
+          </div>
+          <nav class="tabs" id="topTabs"></nav>
+          <div class="topbar-actions">
+            <div class="ghost-chip">London PropTech Show Demo</div>
+            <button class="button" id="newCaseButton">New Case</button>
+          </div>
+        </header>
+        <main class="content" id="app"></main>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="modal">
+      <div class="modal-card">
+        <div class="section-title">
+          <div>
+            <h3>Create New Case</h3>
+            <p>Spin up a fresh regulatory workflow in seconds.</p>
+          </div>
+          <button class="button-link" id="closeModal">Close</button>
+        </div>
+        <div class="field-grid">
+          <div class="field full">
+            <label for="caseName">Development name or postcode</label>
+            <input id="caseName" placeholder="e.g. 112–118 Bow Road E3" />
+          </div>
+          <div class="field">
+            <label for="caseBorough">Borough</label>
+            <select id="caseBorough"></select>
+          </div>
+          <div class="field">
+            <label for="permitType">Permit type</label>
+            <select id="permitType"></select>
+          </div>
+        </div>
+        <div class="footer-actions">
+          <button class="button-secondary" id="cancelModal">Cancel</button>
+          <button class="button" id="submitCase">Create Case</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const boroughs = ["Southwark", "Tower Hamlets", "Hackney", "Lambeth", "Islington"];
+      const permitTypes = [
+        "Full Planning Permission",
+        "Building Regs",
+        "Party Wall Notice",
+        "S278 Agreement",
+        "Listed Building Consent"
+      ];
+      const pipelineStages = [
+        "Request Received",
+        "Preflight Check",
+        "Document Review",
+        "Submitted to LPA",
+        "Decision"
+      ];
+
+      const seedCases = [
+        {
+          id: "case-1",
+          name: "14–18 Bermondsey Street — Full Planning",
+          borough: "Southwark",
+          permitType: "Full Planning Permission",
+          status: "Blocked",
+          stage: 2,
+          daysOpen: 41,
+          assignee: "Maya Singh",
+          stageLabel: "Document Review",
+          blockedReason: "Missing: structural engineer sign-off",
+          submissionDate: "12 Feb 2026",
+          targetDecision: "08 Apr 2026",
+          extension: "Under discussion",
+          contacts: {
+            officer: "Elena Foster, Principal Planner",
+            consultant: "Fielding & Hart Planning",
+            client: "Crestline Development Partners"
+          },
+          documents: [
+            { name: "Existing & Proposed Elevations.pdf", status: "Uploaded" },
+            { name: "Transport Statement.docx", status: "Under Review" },
+            { name: "Structural Engineer Sign-off.pdf", status: "Missing" },
+            { name: "Design & Access Statement.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Comment letter received from LPA", note: "3 items flagged on highways access and servicing strategy.", when: "Today, 09:14" },
+            { title: "Consultant sign-off pending", note: "Fielding & Hart requested final structural note before resubmission.", when: "Yesterday" },
+            { title: "Resubmission uploaded", note: "Landscape amendments and updated daylight pack added.", when: "20 Mar 2026" },
+            { title: "Fee payment confirmed", note: "Planning Portal application fee cleared and reconciled.", when: "12 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-2",
+          name: "55 Cable Street — Building Regs Package",
+          borough: "Tower Hamlets",
+          permitType: "Building Regs",
+          status: "In Review",
+          stage: 1,
+          daysOpen: 19,
+          assignee: "Theo Morgan",
+          stageLabel: "Preflight Check",
+          blockedReason: "",
+          submissionDate: "03 Mar 2026",
+          targetDecision: "17 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "Gareth Phillips, Building Control Surveyor",
+            consultant: "Northbank Building Consultancy",
+            client: "Nine Elms Asset Management"
+          },
+          documents: [
+            { name: "Building Notice.pdf", status: "Uploaded" },
+            { name: "Fire Strategy.pdf", status: "Under Review" },
+            { name: "Acoustic Report.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Validation call completed", note: "Building control requested clearer annotated sections at level 4.", when: "Today, 11:20" },
+            { title: "Architectural pack received", note: "Latest revision uploaded by Northbank team.", when: "22 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-3",
+          name: "82 Mare Street — Party Wall Notices",
+          borough: "Hackney",
+          permitType: "Party Wall Notice",
+          status: "Submitted",
+          stage: 3,
+          daysOpen: 12,
+          assignee: "Aisha Patel",
+          stageLabel: "Submitted to LPA",
+          blockedReason: "",
+          submissionDate: "18 Mar 2026",
+          targetDecision: "15 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "N/A",
+            consultant: "Ward Surveying Co.",
+            client: "Parallel Living"
+          },
+          documents: [
+            { name: "Owner's Notice Pack.pdf", status: "Uploaded" },
+            { name: "Adjacent Owner Register.xlsx", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Notices issued", note: "Service completed to eight adjoining owners.", when: "21 Mar 2026" },
+            { title: "Proof of posting stored", note: "Royal Mail references attached to case.", when: "18 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-4",
+          name: "6–10 Upper Street — Listed Building Consent",
+          borough: "Islington",
+          permitType: "Listed Building Consent",
+          status: "Approved",
+          stage: 4,
+          daysOpen: 58,
+          assignee: "Nina Okafor",
+          stageLabel: "Decision",
+          blockedReason: "",
+          submissionDate: "28 Jan 2026",
+          targetDecision: "19 Mar 2026",
+          extension: "Granted 14 days",
+          contacts: {
+            officer: "Harriet Lowe, Conservation Officer",
+            consultant: "Oldfield Heritage Advisory",
+            client: "Wetherby Estates"
+          },
+          documents: [
+            { name: "Heritage Statement.pdf", status: "Uploaded" },
+            { name: "Joinery Details.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Consent issued", note: "Conditions limited to sample approval and materials schedule.", when: "19 Mar 2026" },
+            { title: "Decision notice archived", note: "Issued notice copied to client and QS team.", when: "19 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-5",
+          name: "201 Kennington Lane — S278 Agreement",
+          borough: "Lambeth",
+          permitType: "S278 Agreement",
+          status: "In Review",
+          stage: 2,
+          daysOpen: 34,
+          assignee: "Jordan Ellis",
+          stageLabel: "Document Review",
+          blockedReason: "",
+          submissionDate: "22 Feb 2026",
+          targetDecision: "28 Apr 2026",
+          extension: "Possible",
+          contacts: {
+            officer: "R. Bennett, Highways Development Control",
+            consultant: "Civic Movement Highways",
+            client: "Borough Yard Developments"
+          },
+          documents: [
+            { name: "Stage 1 RSA.pdf", status: "Uploaded" },
+            { name: "Swept Path Analysis.pdf", status: "Under Review" },
+            { name: "Section 278 Cost Estimate.xlsx", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Highways review underway", note: "Visibility splay and loading bay geometry under review.", when: "Today, 08:42" }
+          ]
+        },
+        {
+          id: "case-6",
+          name: "93 Whitechapel Road — Full Planning",
+          borough: "Tower Hamlets",
+          permitType: "Full Planning Permission",
+          status: "Submitted",
+          stage: 3,
+          daysOpen: 27,
+          assignee: "Maya Singh",
+          stageLabel: "Submitted to LPA",
+          blockedReason: "",
+          submissionDate: "04 Mar 2026",
+          targetDecision: "30 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "S. Rahman, Planning Officer",
+            consultant: "East Dock Planning Studio",
+            client: "Monarch Urban"
+          },
+          documents: [
+            { name: "Planning Statement.pdf", status: "Uploaded" },
+            { name: "Daylight & Sunlight Report.pdf", status: "Uploaded" },
+            { name: "Energy Strategy.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Application validated", note: "Reference issued and public consultation started.", when: "11 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-7",
+          name: "31 Hoxton Square — Building Regs",
+          borough: "Hackney",
+          permitType: "Building Regs",
+          status: "Blocked",
+          stage: 1,
+          daysOpen: 16,
+          assignee: "Theo Morgan",
+          stageLabel: "Preflight Check",
+          blockedReason: "Awaiting revised fire compartmentation details",
+          submissionDate: "07 Mar 2026",
+          targetDecision: "10 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "Louise Brennan, Building Control",
+            consultant: "Urban Core Technical",
+            client: "Northlight Projects"
+          },
+          documents: [
+            { name: "GA Pack.pdf", status: "Uploaded" },
+            { name: "Fire Compartmentation Schedule.pdf", status: "Missing" }
+          ],
+          activity: [
+            { title: "Fire consultant chase sent", note: "Reminder sent to provide updated compartment lines.", when: "Today, 07:55" }
+          ]
+        },
+        {
+          id: "case-8",
+          name: "48 Clapham High Street — Party Wall",
+          borough: "Lambeth",
+          permitType: "Party Wall Notice",
+          status: "Approved",
+          stage: 4,
+          daysOpen: 22,
+          assignee: "Aisha Patel",
+          stageLabel: "Decision",
+          blockedReason: "",
+          submissionDate: "24 Feb 2026",
+          targetDecision: "20 Mar 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "N/A",
+            consultant: "Ward Surveying Co.",
+            client: "Hearthstone Build"
+          },
+          documents: [
+            { name: "Agreed Surveyor Award.pdf", status: "Uploaded" },
+            { name: "Schedule of Condition.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Award executed", note: "All owner signatories complete.", when: "20 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-9",
+          name: "25 Essex Road — Full Planning",
+          borough: "Islington",
+          permitType: "Full Planning Permission",
+          status: "In Review",
+          stage: 2,
+          daysOpen: 31,
+          assignee: "Nina Okafor",
+          stageLabel: "Document Review",
+          blockedReason: "",
+          submissionDate: "26 Feb 2026",
+          targetDecision: "06 May 2026",
+          extension: "Pending client view",
+          contacts: {
+            officer: "Martin Cole, Planning Officer",
+            consultant: "Fielding & Hart Planning",
+            client: "Kensal Grove Capital"
+          },
+          documents: [
+            { name: "Townscape & Visual Impact.pdf", status: "Under Review" },
+            { name: "Planning Statement.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Urban design comments received", note: "Minor revisions requested to roof plant screening.", when: "21 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-10",
+          name: "120 Walworth Road — Listed Building Consent",
+          borough: "Southwark",
+          permitType: "Listed Building Consent",
+          status: "Submitted",
+          stage: 3,
+          daysOpen: 24,
+          assignee: "Jordan Ellis",
+          stageLabel: "Submitted to LPA",
+          blockedReason: "",
+          submissionDate: "05 Mar 2026",
+          targetDecision: "26 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "Priya Saini, Conservation Officer",
+            consultant: "Oldfield Heritage Advisory",
+            client: "Southbank Development Co."
+          },
+          documents: [
+            { name: "Heritage Impact Assessment.pdf", status: "Uploaded" },
+            { name: "Sample Materials Board.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Validation complete", note: "LPA confirmed the submission is valid.", when: "08 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-11",
+          name: "77 Bishopsgate Goods Yard — S278",
+          borough: "Tower Hamlets",
+          permitType: "S278 Agreement",
+          status: "Blocked",
+          stage: 2,
+          daysOpen: 49,
+          assignee: "Theo Morgan",
+          stageLabel: "Document Review",
+          blockedReason: "Awaiting cycle parking tracking note",
+          submissionDate: "02 Feb 2026",
+          targetDecision: "12 May 2026",
+          extension: "Likely",
+          contacts: {
+            officer: "D. Moore, Highways Projects",
+            consultant: "Civic Movement Highways",
+            client: "Atlas Bridge Ventures"
+          },
+          documents: [
+            { name: "General Arrangement Drawing.pdf", status: "Uploaded" },
+            { name: "Cycling Tracking Note.pdf", status: "Missing" }
+          ],
+          activity: [
+            { title: "Highways hold issued", note: "Review paused pending cycle parking tracking response.", when: "20 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-12",
+          name: "9 Stoke Newington Church Street — Building Regs",
+          borough: "Hackney",
+          permitType: "Building Regs",
+          status: "Submitted",
+          stage: 3,
+          daysOpen: 14,
+          assignee: "Aisha Patel",
+          stageLabel: "Submitted to LPA",
+          blockedReason: "",
+          submissionDate: "15 Mar 2026",
+          targetDecision: "22 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "V. Donnelly, Building Control",
+            consultant: "Urban Core Technical",
+            client: "Forge Lane Partners"
+          },
+          documents: [
+            { name: "Structural Design Basis.pdf", status: "Uploaded" },
+            { name: "Drainage Strategy.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Package lodged", note: "Submitted via approved inspector workflow.", when: "15 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-13",
+          name: "104 Kennington Park Road — Full Planning",
+          borough: "Lambeth",
+          permitType: "Full Planning Permission",
+          status: "In Review",
+          stage: 1,
+          daysOpen: 11,
+          assignee: "Maya Singh",
+          stageLabel: "Preflight Check",
+          blockedReason: "",
+          submissionDate: "17 Mar 2026",
+          targetDecision: "12 May 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "TBC",
+            consultant: "Fielding & Hart Planning",
+            client: "Mercury Living"
+          },
+          documents: [
+            { name: "Draft Planning Statement.pdf", status: "Uploaded" },
+            { name: "Community Engagement Note.pdf", status: "Under Review" }
+          ],
+          activity: [
+            { title: "Intake complete", note: "Case opened after planning strategy call with client.", when: "17 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-14",
+          name: "19 Camden Passage — Party Wall",
+          borough: "Islington",
+          permitType: "Party Wall Notice",
+          status: "New",
+          stage: 0,
+          daysOpen: 3,
+          assignee: "Nina Okafor",
+          stageLabel: "Request Received",
+          blockedReason: "",
+          submissionDate: "21 Mar 2026",
+          targetDecision: "18 Apr 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "N/A",
+            consultant: "Ward Surveying Co.",
+            client: "Canal Yard Holdings"
+          },
+          documents: [
+            { name: "Ownership Register.xlsx", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Case created", note: "Initial adjoining owner list under preparation.", when: "21 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-15",
+          name: "43 Peckham Rye — Building Regs",
+          borough: "Southwark",
+          permitType: "Building Regs",
+          status: "Approved",
+          stage: 4,
+          daysOpen: 46,
+          assignee: "Jordan Ellis",
+          stageLabel: "Decision",
+          blockedReason: "",
+          submissionDate: "06 Feb 2026",
+          targetDecision: "24 Mar 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "Julie Kerr, Building Control",
+            consultant: "Northbank Building Consultancy",
+            client: "Hanwell Projects"
+          },
+          documents: [
+            { name: "Building Control Approval.pdf", status: "Uploaded" },
+            { name: "Inspection Schedule.pdf", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Approval issued", note: "Final sign-off scheduled with contractor team.", when: "24 Mar 2026" }
+          ]
+        },
+        {
+          id: "case-16",
+          name: "11 Bethnal Green Road — Listed Building",
+          borough: "Tower Hamlets",
+          permitType: "Listed Building Consent",
+          status: "In Review",
+          stage: 2,
+          daysOpen: 29,
+          assignee: "Theo Morgan",
+          stageLabel: "Document Review",
+          blockedReason: "",
+          submissionDate: "01 Mar 2026",
+          targetDecision: "03 May 2026",
+          extension: "Possible",
+          contacts: {
+            officer: "A. Lawrence, Conservation",
+            consultant: "Oldfield Heritage Advisory",
+            client: "Foundry Quarter"
+          },
+          documents: [
+            { name: "Heritage Note.pdf", status: "Uploaded" },
+            { name: "Window Repair Schedule.pdf", status: "Under Review" }
+          ],
+          activity: [
+            { title: "Conservation feedback logged", note: "Condition wording expected after internal review.", when: "22 Mar 2026" }
+          ]
+        }
+      ];
+
+      const seedReconciliation = [
+        { id: "rec-1", providerName: "Fielding & Hart Planning", serviceType: "Planning Consultant", amount: 7800, status: "Pending", invoiceReference: "FH-PL-24031", caseId: "case-1", borough: "Southwark", month: "Mar" },
+        { id: "rec-2", providerName: "Southwark Council", serviceType: "LPA Fee", amount: 5780, status: "Paid", invoiceReference: "LPA-SWK-1182", caseId: "case-1", borough: "Southwark", month: "Mar" },
+        { id: "rec-3", providerName: "Northbank Building Consultancy", serviceType: "Structural Engineer", amount: 4200, status: "Pending", invoiceReference: "NB-BC-992", caseId: "case-2", borough: "Tower Hamlets", month: "Mar" },
+        { id: "rec-4", providerName: "Ward Surveying Co.", serviceType: "Party Wall Surveyor", amount: 1950, status: "Paid", invoiceReference: "WSC-4418", caseId: "case-3", borough: "Hackney", month: "Mar" },
+        { id: "rec-5", providerName: "Oldfield Heritage Advisory", serviceType: "Planning Consultant", amount: 5600, status: "Paid", invoiceReference: "OHA-1127", caseId: "case-4", borough: "Islington", month: "Feb" },
+        { id: "rec-6", providerName: "Civic Movement Highways", serviceType: "Highways Consultant", amount: 9900, status: "Disputed", invoiceReference: "CMH-7734", caseId: "case-5", borough: "Lambeth", month: "Mar" },
+        { id: "rec-7", providerName: "Planning Portal", serviceType: "LPA Fee", amount: 11892, status: "Paid", invoiceReference: "PP-6614", caseId: "case-6", borough: "Tower Hamlets", month: "Mar" },
+        { id: "rec-8", providerName: "Urban Core Technical", serviceType: "Building Regs", amount: 3300, status: "Pending", invoiceReference: "UCT-1205", caseId: "case-7", borough: "Hackney", month: "Mar" },
+        { id: "rec-9", providerName: "Ward Surveying Co.", serviceType: "Party Wall Surveyor", amount: 2100, status: "Paid", invoiceReference: "WSC-4461", caseId: "case-8", borough: "Lambeth", month: "Mar" },
+        { id: "rec-10", providerName: "Fielding & Hart Planning", serviceType: "Planning Consultant", amount: 6400, status: "Pending", invoiceReference: "FH-PL-24058", caseId: "case-9", borough: "Islington", month: "Mar" },
+        { id: "rec-11", providerName: "Oldfield Heritage Advisory", serviceType: "Planning Consultant", amount: 4700, status: "Pending", invoiceReference: "OHA-1151", caseId: "case-10", borough: "Southwark", month: "Mar" },
+        { id: "rec-12", providerName: "Civic Movement Highways", serviceType: "Highways Consultant", amount: 12350, status: "Pending", invoiceReference: "CMH-7808", caseId: "case-11", borough: "Tower Hamlets", month: "Mar" }
+      ];
+
+      const navItems = [
+        { key: "dashboard", icon: "⌂", label: "Dashboard" },
+        { key: "cases", icon: "▤", label: "Cases" },
+        { key: "documents", icon: "⧉", label: "Documents" },
+        { key: "providers", icon: "◌", label: "Providers" },
+        { key: "reconciliation", icon: "£", label: "Reconciliation" },
+        { key: "settings", icon: "⚙", label: "Settings" }
+      ];
+
+      const topTabs = [
+        { key: "dashboard", label: "Dashboard" },
+        { key: "cases", label: "Cases" },
+        { key: "documents", label: "Documents" },
+        { key: "reconciliation", label: "Reconciliation" }
+      ];
+
+      const state = {
+        view: "dashboard",
+        cases: structuredClone(seedCases),
+        reconciliation: structuredClone(seedReconciliation),
+        selectedCaseId: "case-1",
+        documentFilter: "All",
+        modalOpen: false,
+        flashReconciliationId: null
+      };
+
+      const app = document.getElementById("app");
+      const sidebar = document.getElementById("sidebar");
+      const topTabsEl = document.getElementById("topTabs");
+      const modal = document.getElementById("modal");
+      const newCaseButton = document.getElementById("newCaseButton");
+      const closeModal = document.getElementById("closeModal");
+      const cancelModal = document.getElementById("cancelModal");
+      const submitCase = document.getElementById("submitCase");
+      const caseNameInput = document.getElementById("caseName");
+      const caseBoroughSelect = document.getElementById("caseBorough");
+      const permitTypeSelect = document.getElementById("permitType");
+
+      boroughs.forEach((borough) => {
+        const option = document.createElement("option");
+        option.value = borough;
+        option.textContent = borough;
+        caseBoroughSelect.append(option);
+      });
+
+      permitTypes.forEach((permit) => {
+        const option = document.createElement("option");
+        option.value = permit;
+        option.textContent = permit;
+        permitTypeSelect.append(option);
+      });
+
+      function formatCurrency(value) {
+        return new Intl.NumberFormat("en-GB", {
+          style: "currency",
+          currency: "GBP",
+          maximumFractionDigits: 0
+        }).format(value);
+      }
+
+      function getStatusClass(status) {
+        const map = {
+          Blocked: "status-blocked",
+          "In Review": "status-review",
+          Submitted: "status-submitted",
+          Approved: "status-approved",
+          New: "status-new",
+          Paid: "status-paid",
+          Pending: "status-pending",
+          Disputed: "status-disputed",
+          Uploaded: "status-approved",
+          Missing: "status-blocked",
+          "Under Review": "status-review"
+        };
+        return map[status] || "status-new";
+      }
+
+      function selectedCase() {
+        return state.cases.find((entry) => entry.id === state.selectedCaseId) || state.cases[0];
+      }
+
+      function summaryMetrics() {
+        const totalActive = state.cases.length;
+        const awaitingAction = state.cases.filter((item) => item.status === "Blocked" || item.status === "In Review" || item.status === "New").length;
+        const submittedThisMonth = state.cases.filter((item) => item.status === "Submitted" || item.status === "Approved").length;
+        const avgDays = Math.round(state.cases.reduce((acc, item) => acc + item.daysOpen, 0) / totalActive);
+        return [
+          { label: "Total Active Cases", value: totalActive, delta: "+3 new this week" },
+          { label: "Awaiting Action", value: awaitingAction, delta: "6 escalated to provider" },
+          { label: "Submitted This Month", value: submittedThisMonth, delta: "Across 5 London boroughs" },
+          { label: "Avg. Days to Approval", value: avgDays, delta: "9% faster vs last month" }
+        ];
+      }
+
+      function reconciliationSummary() {
+        const total = state.reconciliation.reduce((acc, item) => acc + item.amount, 0);
+        const paid = state.reconciliation.filter((item) => item.status === "Paid").reduce((acc, item) => acc + item.amount, 0);
+        const pending = state.reconciliation.filter((item) => item.status === "Pending").reduce((acc, item) => acc + item.amount, 0);
+        const disputed = state.reconciliation.filter((item) => item.status === "Disputed").reduce((acc, item) => acc + item.amount, 0);
+        return [
+          { label: "Total Committed Spend", value: formatCurrency(total), delta: "Across planning, highways and technical fees" },
+          { label: "Paid to Date", value: formatCurrency(paid), delta: "Auto-matched to approved cases" },
+          { label: "Pending Approval", value: formatCurrency(pending), delta: "5 invoices awaiting ops review" },
+          { label: "Disputed", value: formatCurrency(disputed), delta: "1 fee pack requires QS sign-off" }
+        ];
+      }
+
+      function spendByBorough() {
+        const grouped = {};
+        state.reconciliation.forEach((item) => {
+          grouped[item.borough] = (grouped[item.borough] || 0) + item.amount;
+        });
+        return Object.entries(grouped).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+      }
+
+      function renderSidebar() {
+        sidebar.innerHTML = `
+          <div class="sidebar-badge">A</div>
+          ${navItems
+            .map((item) => `
+              <button class="sidebar-item ${isNavActive(item.key) ? "active" : ""}" data-nav="${item.key}" title="${item.label}">
+                <span>${item.icon}</span>
+              </button>
+            `)
+            .join("")}
+        `;
+      }
+
+      function renderTopTabs() {
+        topTabsEl.innerHTML = topTabs
+          .map((tab) => `<button class="tab ${isNavActive(tab.key) ? "active" : ""}" data-tab="${tab.key}">${tab.label}</button>`)
+          .join("");
+      }
+
+      function isNavActive(key) {
+        if (key === "cases") return state.view === "dashboard" || state.view === "case-detail";
+        if (key === "providers") return state.view === "dashboard";
+        return state.view === key;
+      }
+
+      function renderDashboard() {
+        const metrics = summaryMetrics();
+        const priorityCases = state.cases
+          .filter((item) => item.status === "Blocked" || item.status === "In Review")
+          .slice(0, 4);
+
+        return `
+          <section class="hero">
+            <div class="panel hero-primary">
+              <div class="eyebrow">Live portfolio view across planning, building regs and highways</div>
+              <h2>Move every permit case before delays start costing the scheme.</h2>
+              <p>Atlasly Flow gives ops teams one control tower for case status, missing documents, provider coordination and fee reconciliation across the full development pipeline.</p>
+              <div class="hero-grid">
+                <div class="hero-mini">
+                  <strong>18</strong>
+                  <span>Open regulatory workflows across London</span>
+                </div>
+                <div class="hero-mini">
+                  <strong>7</strong>
+                  <span>Cases sitting with local planning authorities</span>
+                </div>
+                <div class="hero-mini">
+                  <strong>£76k</strong>
+                  <span>Committed provider spend tracked in one place</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel hero-side">
+              <div class="section-title">
+                <div>
+                  <h3>Today’s attention queue</h3>
+                  <p>Priority blockers Atlasly surfaced this morning</p>
+                </div>
+              </div>
+              <div class="priority-list">
+                ${priorityCases.map((item) => `
+                  <div class="priority-item">
+                    <strong>${item.name}</strong>
+                    <p>${item.blockedReason || item.stageLabel} • ${item.assignee} • ${item.borough}</p>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          </section>
+
+          <section class="metrics">
+            ${metrics.map((metric) => `
+              <div class="metric">
+                <div class="label">${metric.label}</div>
+                <strong>${metric.value}</strong>
+                <div class="delta">${metric.delta}</div>
+              </div>
+            `).join("")}
+          </section>
+
+          <section class="layout-grid">
+            <div class="card">
+              <div class="section-title">
+                <div>
+                  <h3>Control Tower</h3>
+                  <p>Click any case to open the live permit journey.</p>
+                </div>
+                <span class="badge">${state.cases.length} active cases</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Case</th>
+                      <th>Borough</th>
+                      <th>Permit</th>
+                      <th>Status</th>
+                      <th>Days Open</th>
+                      <th>Assigned To</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${state.cases.map((item) => `
+                      <tr data-case-row="${item.id}">
+                        <td>
+                          <div class="case-name">${item.name}</div>
+                          <div class="subtle">${item.stageLabel}</div>
+                        </td>
+                        <td>${item.borough}</td>
+                        <td>${item.permitType}</td>
+                        <td><span class="status-pill ${getStatusClass(item.status)}">${item.status}</span></td>
+                        <td>${item.daysOpen}</td>
+                        <td>${item.assignee}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Portfolio pulse</h3>
+                    <p>Live by status</p>
+                  </div>
+                </div>
+                <div class="priority-list">
+                  ${["Blocked", "In Review", "Submitted", "Approved", "New"].map((status) => `
+                    <div class="list-item">
+                      <div>
+                        <strong>${status}</strong>
+                        <div class="subtle">Across planning, building control and party wall work</div>
+                      </div>
+                      <span class="status-pill ${getStatusClass(status)}">${state.cases.filter((item) => item.status === status).length}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Mock interactions</h3>
+                    <p>Designed for a live event demo</p>
+                  </div>
+                </div>
+                <div class="priority-list">
+                  <div class="priority-item">
+                    <strong>New Case modal</strong>
+                    <p>Enter a development name or postcode and Atlasly instantly opens the workflow.</p>
+                  </div>
+                  <div class="priority-item">
+                    <strong>Case detail journey</strong>
+                    <p>Use the blocked banner to narrate exactly where money is being lost.</p>
+                  </div>
+                  <div class="priority-item">
+                    <strong>Reconciliation action</strong>
+                    <p>Flip pending provider fees to paid live in front of finance or ops teams.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderCaseDetail() {
+        const permitCase = selectedCase();
+        return `
+          <div class="breadcrumbs">
+            <button data-go="dashboard">Dashboard</button>
+            <span>/</span>
+            <span>${permitCase.name}</span>
+          </div>
+          <section class="card" style="margin-bottom: 18px;">
+            <div class="section-title">
+              <div>
+                <h3>${permitCase.name}</h3>
+                <p>${permitCase.borough} • ${permitCase.permitType} • ${permitCase.daysOpen} days open • ${permitCase.assignee}</p>
+              </div>
+              <span class="status-pill ${getStatusClass(permitCase.status)}">${permitCase.status}</span>
+            </div>
+            ${permitCase.status === "Blocked" ? `
+              <div class="banner">
+                <div>
+                  <strong>Blocked — Action Required</strong>
+                  <div class="subtle" style="color:#fecaca; margin-top:4px;">${permitCase.blockedReason}</div>
+                </div>
+                <button class="button-secondary" data-go="documents">Open documents</button>
+              </div>
+            ` : ""}
+            <div class="pipeline">
+              ${pipelineStages.map((stage, index) => `
+                <div class="pipeline-step ${index < permitCase.stage ? "complete" : ""} ${index === permitCase.stage ? "active" : ""}">
+                  <div class="step-index">${index < permitCase.stage ? "✓" : index + 1}</div>
+                  <div class="step-title">${stage}</div>
+                  <div class="subtle">${index === permitCase.stage ? "Current stage" : index < permitCase.stage ? "Completed" : "Upcoming"}</div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+
+          <section class="detail-grid">
+            <div class="card">
+              <div class="section-title">
+                <div>
+                  <h3>Activity timeline</h3>
+                  <p>Everything that has happened on this case</p>
+                </div>
+              </div>
+              <div class="timeline">
+                ${permitCase.activity.map((item) => `
+                  <div class="timeline-item">
+                    <strong>${item.title}</strong>
+                    <p style="margin: 6px 0 8px; color:#cbd5e1;">${item.note}</p>
+                    <div class="subtle">${item.when}</div>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Documents</h3>
+                    <p>Attachment status at a glance</p>
+                  </div>
+                </div>
+                <div class="list-block">
+                  ${permitCase.documents.map((doc) => `
+                    <div class="list-item">
+                      <div>
+                        <strong>${doc.name}</strong>
+                        <div class="subtle">Linked to ${permitCase.permitType}</div>
+                      </div>
+                      <span class="status-pill ${getStatusClass(doc.status)}">${doc.status}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Contacts</h3>
+                    <p>People moving this case forward</p>
+                  </div>
+                </div>
+                <div class="list-block">
+                  <div class="list-item"><div><strong>LPA Case Officer</strong><div class="subtle">${permitCase.contacts.officer}</div></div></div>
+                  <div class="list-item"><div><strong>Planning Consultant</strong><div class="subtle">${permitCase.contacts.consultant}</div></div></div>
+                  <div class="list-item"><div><strong>Client</strong><div class="subtle">${permitCase.contacts.client}</div></div></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Key dates</h3>
+                    <p>Delivery targets and timing risk</p>
+                  </div>
+                </div>
+                <div class="list-block">
+                  <div class="list-item"><div><strong>Submission date</strong><div class="subtle">${permitCase.submissionDate}</div></div></div>
+                  <div class="list-item"><div><strong>Target decision date</strong><div class="subtle">${permitCase.targetDecision}</div></div></div>
+                  <div class="list-item"><div><strong>Extension of time</strong><div class="subtle">${permitCase.extension}</div></div></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderDocuments() {
+        const permitCase = selectedCase();
+        const docs = state.documentFilter === "All"
+          ? permitCase.documents
+          : permitCase.documents.filter((doc) => doc.status === state.documentFilter);
+
+        return `
+          <section class="hero" style="margin-bottom:18px;">
+            <div class="panel hero-primary">
+              <div class="eyebrow">Documents workspace</div>
+              <h2>Spot missing packs before they stall validation.</h2>
+              <p>Every permit case carries its own operational paper trail, from planning statements and heritage notes to structural sign-offs and fee evidence.</p>
+            </div>
+            <div class="panel hero-side">
+              <div class="section-title">
+                <div>
+                  <h3>Active case</h3>
+                  <p>${permitCase.name}</p>
+                </div>
+              </div>
+              <div class="priority-item">
+                <strong>${permitCase.blockedReason || "Document set is moving"}</strong>
+                <p>${permitCase.permitType} • ${permitCase.borough} • ${permitCase.stageLabel}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="section-title">
+              <div>
+                <h3>Document register</h3>
+                <p>Filter by status and move straight into the case journey.</p>
+              </div>
+              <div class="filters">
+                ${["All", "Uploaded", "Under Review", "Missing"].map((filter) => `
+                  <button class="chip ${state.documentFilter === filter ? "active" : ""}" data-filter="${filter}">${filter}</button>
+                `).join("")}
+              </div>
+            </div>
+            <div class="list-block">
+              ${docs.map((doc) => `
+                <div class="list-item">
+                  <div>
+                    <strong>${doc.name}</strong>
+                    <div class="subtle">${permitCase.name} • ${permitCase.contacts.consultant}</div>
+                  </div>
+                  <span class="status-pill ${getStatusClass(doc.status)}">${doc.status}</span>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+        `;
+      }
+
+      function renderReconciliation() {
+        const summary = reconciliationSummary();
+        const chartData = spendByBorough();
+        const max = Math.max(...chartData.map((item) => item.value));
+
+        return `
+          <section class="metrics">
+            ${summary.map((metric) => `
+              <div class="metric">
+                <div class="label">${metric.label}</div>
+                <strong>${metric.value}</strong>
+                <div class="delta">${metric.delta}</div>
+              </div>
+            `).join("")}
+          </section>
+
+          <section class="layout-grid">
+            <div class="card">
+              <div class="section-title">
+                <div>
+                  <h3>Provider reconciliation</h3>
+                  <p>Finance and ops can reconcile every consultant and LPA fee against the live casebook.</p>
+                </div>
+                <span class="badge">${state.reconciliation.length} fee lines</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Provider Name</th>
+                      <th>Service Type</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Invoice Ref</th>
+                      <th>Linked Case</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${state.reconciliation.map((row) => {
+                      const linkedCase = state.cases.find((item) => item.id === row.caseId);
+                      const flash = state.flashReconciliationId === row.id ? "flash" : "";
+                      return `
+                        <tr class="${flash}">
+                          <td>${row.providerName}</td>
+                          <td>${row.serviceType}</td>
+                          <td>${formatCurrency(row.amount)}</td>
+                          <td><span class="status-pill ${getStatusClass(row.status)}">${row.status}</span></td>
+                          <td>${row.invoiceReference}</td>
+                          <td>${linkedCase ? linkedCase.name : "-"}</td>
+                          <td>${row.status === "Pending" ? `<button class="button-secondary" data-reconcile="${row.id}">Reconcile</button>` : `<span class="subtle">${row.status === "Paid" ? "Matched" : "Needs review"}</span>`}</td>
+                        </tr>
+                      `;
+                    }).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Spend by borough</h3>
+                    <p>Where permit and consultant fees are clustering</p>
+                  </div>
+                </div>
+                <div class="chart">
+                  ${chartData.map((item) => `
+                    <div class="chart-bar-wrap">
+                      <div class="chart-value">${formatCurrency(item.value)}</div>
+                      <div class="chart-bar" style="height:${Math.max(28, Math.round((item.value / max) * 180))}px"></div>
+                      <div class="chart-label">${item.label}</div>
+                    </div>
+                  `).join("")}
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title">
+                  <div>
+                    <h3>Why it matters</h3>
+                    <p>The sleeper feature for finance and ops teams</p>
+                  </div>
+                </div>
+                <div class="priority-list">
+                  <div class="priority-item">
+                    <strong>Case-linked fees</strong>
+                    <p>Every invoice is tied back to the development, consultant and permit workflow that generated it.</p>
+                  </div>
+                  <div class="priority-item">
+                    <strong>Fast approval motion</strong>
+                    <p>Pending rows flip to paid instantly, giving the demo a strong “this is a real product” moment.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderPlaceholder(title, description) {
+        return `
+          <section class="card">
+            <div class="section-title">
+              <div>
+                <h3>${title}</h3>
+                <p>${description}</p>
+              </div>
+            </div>
+            <div class="priority-item">
+              <strong>Use the core tabs to drive the live demo.</strong>
+              <p>Dashboard, Documents, and Reconciliation are fully interactive. Case detail opens from any row in the dashboard.</p>
+            </div>
+          </section>
+        `;
+      }
+
+      function render() {
+        renderSidebar();
+        renderTopTabs();
+
+        if (state.view === "dashboard") {
+          app.innerHTML = renderDashboard();
+        } else if (state.view === "case-detail") {
+          app.innerHTML = renderCaseDetail();
+        } else if (state.view === "documents") {
+          app.innerHTML = renderDocuments();
+        } else if (state.view === "reconciliation") {
+          app.innerHTML = renderReconciliation();
+        } else if (state.view === "settings") {
+          app.innerHTML = renderPlaceholder("Settings", "Admin controls, team permissions and portfolio-level preferences.");
+        } else {
+          app.innerHTML = renderPlaceholder("Cases", "Case management controls are demonstrated through the dashboard and case detail flow.");
+        }
+
+        bindRenderedEvents();
+      }
+
+      function bindRenderedEvents() {
+        document.querySelectorAll("[data-nav]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-nav");
+            navigateFromNav(key);
+          });
+        });
+
+        document.querySelectorAll("[data-tab]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.getAttribute("data-tab");
+            navigateFromNav(key);
+          });
+        });
+
+        document.querySelectorAll("[data-case-row]").forEach((row) => {
+          row.addEventListener("click", () => {
+            state.selectedCaseId = row.getAttribute("data-case-row");
+            state.view = "case-detail";
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-go]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.view = button.getAttribute("data-go");
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-filter]").forEach((button) => {
+          button.addEventListener("click", () => {
+            state.documentFilter = button.getAttribute("data-filter");
+            render();
+          });
+        });
+
+        document.querySelectorAll("[data-reconcile]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const id = button.getAttribute("data-reconcile");
+            state.reconciliation = state.reconciliation.map((row) => row.id === id ? { ...row, status: "Paid" } : row);
+            state.flashReconciliationId = id;
+            render();
+            setTimeout(() => {
+              state.flashReconciliationId = null;
+              render();
+            }, 700);
+          });
+        });
+      }
+
+      function navigateFromNav(key) {
+        if (key === "dashboard" || key === "cases") {
+          state.view = "dashboard";
+        } else if (key === "reconciliation") {
+          state.view = "reconciliation";
+        } else if (key === "documents") {
+          state.view = "documents";
+        } else if (key === "settings") {
+          state.view = "settings";
+        } else {
+          state.view = "dashboard";
+        }
+        render();
+      }
+
+      function openModal() {
+        state.modalOpen = true;
+        modal.classList.add("open");
+      }
+
+      function closeNewCaseModal() {
+        state.modalOpen = false;
+        modal.classList.remove("open");
+      }
+
+      function createCase() {
+        const rawName = caseNameInput.value.trim();
+        const borough = caseBoroughSelect.value || boroughs[0];
+        const permitType = permitTypeSelect.value || permitTypes[0];
+        if (!rawName) return;
+
+        const newCase = {
+          id: `case-${Date.now()}`,
+          name: `${rawName} — ${permitType}`,
+          borough,
+          permitType,
+          status: "New",
+          stage: 0,
+          daysOpen: 0,
+          assignee: "Atlasly Ops Desk",
+          stageLabel: "Request Received",
+          blockedReason: "",
+          submissionDate: "24 Mar 2026",
+          targetDecision: "20 May 2026",
+          extension: "Not required",
+          contacts: {
+            officer: "TBC",
+            consultant: "Atlasly network provider",
+            client: "New client intake"
+          },
+          documents: [
+            { name: "Initial Brief.pdf", status: "Uploaded" },
+            { name: "Site Address Validation.txt", status: "Uploaded" }
+          ],
+          activity: [
+            { title: "Case created", note: "New workflow created from demo intake modal.", when: "Just now" },
+            { title: "Preflight queued", note: "Atlasly is assembling the case requirements pack.", when: "Just now" }
+          ]
+        };
+
+        state.cases = [newCase, ...state.cases];
+        state.selectedCaseId = newCase.id;
+        caseNameInput.value = "";
+        closeNewCaseModal();
+        state.view = "dashboard";
+        render();
+      }
+
+      newCaseButton.addEventListener("click", openModal);
+      closeModal.addEventListener("click", closeNewCaseModal);
+      cancelModal.addEventListener("click", closeNewCaseModal);
+      submitCase.addEventListener("click", createCase);
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) closeNewCaseModal();
+      });
+
+      render();
+    </script>
+  </body>
+</html>
